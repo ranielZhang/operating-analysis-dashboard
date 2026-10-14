@@ -1,19 +1,9 @@
 <template>
     <div class="drill-page">
-        <!-- 标题区：说明两条下钻轴的业务含义 -->
-        <header class="drill-page__head">
-            <div class="drill-page__title">
-                <h2>经营数据看板</h2>
-                <p class="drill-page__sub">
-                    逐层下钻：按组织轴 <b>公司 → 中心 → 部门 → 小组 → 投手</b> 回答“谁在赚钱”；按业务轴
-                    <b>公司 → 平台 → 项目 → 游戏</b> 回答“什么在赚钱”。点击任意一行即可在左侧查看该层级的完整经营画像，
-                    下方按当前范围推演本月落点与未来 6 个月的经营预估。
-                </p>
-            </div>
-            <div class="drill-page__actions">
-                <el-button size="small" @click="backToCompany">回到全公司</el-button>
-            </div>
-        </header>
+        <!-- 操作行：只保留必要操作，页面名称由左侧菜单承担，不重复写标题与说明 -->
+        <div class="drill-page__bar">
+            <el-button size="small" @click="backToCompany">回到全公司</el-button>
+        </div>
 
         <!-- 范围提示条：存在组织/业务范围筛选时提示，避免误读下钻结果 -->
         <div v-if="hasFilter" class="drill-page__scope">
@@ -105,40 +95,12 @@
         min-height: 0;
     }
 
-    .drill-page__head {
+    .drill-page__bar {
         display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
+        align-items: center;
+        justify-content: flex-end;
         gap: var(--oa-gap);
-    }
-
-    .drill-page__title {
-        min-width: 0;
-
-        h2 {
-            margin: 0 0 4px;
-            font-size: var(--oa-fs-xl);
-            color: var(--oa-text-1);
-            line-height: 1.3;
-        }
-    }
-
-    .drill-page__sub {
-        margin: 0;
-        max-width: 900px;
-        font-size: var(--oa-fs-sm);
-        line-height: 1.6;
-        color: var(--oa-text-3);
-
-        b {
-            color: var(--oa-text-1);
-            font-weight: 600;
-        }
-    }
-
-    .drill-page__actions {
-        flex: 0 0 auto;
-        padding-top: 2px;
+        min-height: 24px;
     }
 
     .drill-page__scope {

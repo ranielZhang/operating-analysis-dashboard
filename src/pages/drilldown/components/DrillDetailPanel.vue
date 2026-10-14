@@ -115,42 +115,7 @@
                     <p class="detail__note">仅展示与左侧树同口径的月度走势；节点未被单月筛选命中时该月按 0 计。</p>
                 </section>
 
-                <!-- 区块 4 · 结构明细 -->
-                <section class="detail__block">
-                    <div class="detail__block-head">
-                        <span class="detail__block-title">结构明细</span>
-                        <span class="detail__block-sub">
-                            收入合计 {{ money(revenueTotal) }} · 成本合计 {{ money(costTotal) }}
-                        </span>
-                    </div>
-                    <div class="detail__breakdown">
-                        <div class="detail__pie detail__pie--revenue">
-                            <div class="detail__pie-head">
-                                <span class="detail__pie-title">收入构成</span>
-                                <span class="oa-num">{{ money(revenueTotal) }}</span>
-                            </div>
-                            <EChart v-if="revenueTotal > 0" :option="revenuePie" style="height: 168px" />
-                            <PanelEmptyState v-else text="本期无收入" />
-                        </div>
-
-                        <div class="detail__pie detail__pie--cost">
-                            <div class="detail__pie-head">
-                                <span class="detail__pie-title">成本构成</span>
-                                <span class="oa-num">{{ money(costTotal) }}</span>
-                            </div>
-                            <EChart v-if="costTotal > 0" :option="costPie" style="height: 168px" />
-                            <PanelEmptyState v-else text="本期无成本" />
-                        </div>
-                    </div>
-
-                    <!-- 预付（充值额）与投放消耗属不同口径，不能叠加进构成，单独说明 -->
-                    <p v-if="prepayAmount > 0" class="detail__pie-note">
-                        本期现金流出（充值）<b class="oa-num">{{ money(prepayAmount) }}</b>
-                        —— 属银行流水口径，与投放消耗不可叠加，故不计入成本构成。
-                    </p>
-                </section>
-
-                <!-- 区块 5 · 现金口径 -->
+                <!-- 区块 4 · 现金口径 -->
                 <p v-if="showCash" class="detail__cash">
                     预付余额 <b class="oa-num">{{ money(m.prepayBalance) }}</b> · 应收未收
                     <b class="oa-num">{{ money(m.receivable) }}</b> → 现金缺口
@@ -174,7 +139,7 @@
     import { money, monthLabel, percent, ratio, toWan, trendClass } from '@/utils/format';
     import { drillSelection } from '../useDrillSelection';
 
-    /** 逐层下钻 · 右侧节点详情侧栏：节点头部 / 核心小卡 / 月度走势 / 结构明细 / 现金口径 */
+    /** 经营数据看板 · 节点详情侧栏：节点头部 / 核心小卡 / 月度走势 / 现金口径 */
     defineOptions({ name: 'DrillDetailPanel' });
 
     const { filter } = useAnalysisFilter();
@@ -303,144 +268,7 @@
         ],
     }));
 
-    // ---------- 区块 4 · 结构明细 ----------
-    interface BreakdownDef {
-        name: string;
-        value: number;
-        color: string;
-    }
-
-    const revenueTotal = computed(() => {
-        const r = m.value?.revenueByType;
-        if (!r) return 0;
-        return r.liuliangzhu + r.adGold + r.iapShare;
-    });
-
-    const costTotal = computed(() => m.value?.totalCost ?? 0);
-
-    const revenueDefs = computed<BreakdownDef[]>(() => {
-        const r = m.value?.revenueByType;
-        return [
-            { name: '流量主', value: r?.liuliangzhu ?? 0, color: 'var(--oa-rev-liuliangzhu)' },
-            { name: '广告金', value: r?.adGold ?? 0, color: 'var(--oa-rev-adgold)' },
-            { name: '分成', value: r?.iapShare ?? 0, color: 'var(--oa-rev-share)' },
-        ];
-    });
-
-    const costDefs = computed<BreakdownDef[]>(() => {
-        const c = m.value?.costByType;
-        return [
-            { name: '投放', value: c?.adSpend ?? 0, color: 'var(--oa-cost-ad)' },
-            { name: '预付', value: c?.prepay ?? 0, color: 'var(--oa-cost-prepay)' },
-            { name: '工资', value: c?.salary ?? 0, color: 'var(--oa-cost-labor)' },
-            { name: '医社保', value: c?.socialInsurance ?? 0, color: 'var(--oa-cost-labor)' },
-            { name: '个税', value: c?.individualTax ?? 0, color: 'var(--oa-cost-labor)' },
-            { name: '项目奖金', value: c?.projectBonus ?? 0, color: 'var(--oa-cost-labor)' },
-            { name: '福利费', value: c?.welfare ?? 0, color: 'var(--oa-cost-admin)' },
-            { name: '办公费', value: c?.office ?? 0, color: 'var(--oa-cost-admin)' },
-        ];
-    });
-
-    function decorate(defs: BreakdownDef[], total: number) {
-        return defs.map((d) => {
-            const share = total > 0 ? d.value / total : 0;
-            return {
-                ...d,
-                share,
-                percentage: Math.min(100, Math.max(0, Math.round(share * 100))),
-            };
-        });
-    }
-
-    const revenueRows = computed(() => decorate(revenueDefs.value, revenueTotal.value));
-    const costRows = computed(() => decorate(costDefs.value, costTotal.value));
-
-    /** 本期充值额（现金口径），仅作说明，不进饼图 */
-    const prepayAmount = computed(() => m.value?.costByType.prepay ?? 0);
-
-    /**
-     * 成本构成饼图的数据。
-     * 刻意**剔除「预付」**：它代表本期现金流出（充值额），与「投放」是同一笔业务成本的两种口径，
-     * 两者相加会超过总成本（实测 79.7% + 93.3% > 100%），因此只保留可加总的 7 个科目。
-     */
-    const costPieDefs = computed(() => costDefs.value.filter((d) => d.name !== '预付'));
-
-    interface PieSlice {
-        name: string;
-        value: number;
-    }
-
-    /** 生成环形饼图 option：左侧圆环 + 右侧竖排图例（带金额与占比） */
-    function buildPie(
-        defs: BreakdownDef[],
-        total: number,
-        centerLabel: string,
-        palette: string[],
-        allRows: Array<BreakdownDef & { share: number }>,
-    ): EChartsOption {
-        const data: PieSlice[] = defs.filter((d) => d.value > 0).map((d) => ({ name: d.name, value: d.value }));
-        const byName = new Map(allRows.map((r) => [r.name, r]));
-        return {
-            color: palette,
-            tooltip: {
-                trigger: 'item',
-                formatter: (p: { name: string; value: number; percent: number }) =>
-                    `${p.name}<br/>${money(p.value)} · ${p.percent.toFixed(1)}%`,
-            },
-            legend: {
-                orient: 'vertical',
-                right: 0,
-                top: 'middle',
-                itemWidth: 8,
-                itemHeight: 8,
-                itemGap: 6,
-                textStyle: { fontSize: 11, color: '#4b5563' },
-                formatter: (name: string) => {
-                    const row = byName.get(name);
-                    if (!row) return name;
-                    return `${name}  ${money(row.value)}  ${percent(row.share)}`;
-                },
-            },
-            title: {
-                text: money(total),
-                subtext: centerLabel,
-                left: '27%',
-                top: '42%',
-                textAlign: 'center',
-                textStyle: { fontSize: 13, fontWeight: 700, color: '#1f2937' },
-                subtextStyle: { fontSize: 10, color: '#9ca3af' },
-            },
-            series: [
-                {
-                    type: 'pie',
-                    radius: ['46%', '70%'],
-                    center: ['27%', '50%'],
-                    avoidLabelOverlap: true,
-                    label: { show: false },
-                    labelLine: { show: false },
-                    itemStyle: { borderColor: '#fff', borderWidth: 1 },
-                    data,
-                },
-            ],
-        } as EChartsOption;
-    }
-
-    const revenuePie = computed<EChartsOption>(() =>
-        buildPie(revenueDefs.value, revenueTotal.value, '收入合计', ['#8b5cf6', '#f472b6', '#06b6d4'], revenueRows.value),
-    );
-
-    const costPie = computed<EChartsOption>(() =>
-        buildPie(
-            costPieDefs.value,
-            costTotal.value,
-            '成本合计',
-            // 投放（红）→ 人工四科目（蓝由深到浅）→ 管理两科目（青由深到浅）
-            ['#fd6464', '#4d94fa', '#7aaffb', '#a5c9fd', '#c9ddfe', '#06b6d4', '#5fd4e6'],
-            costRows.value,
-        ),
-    );
-
-    // ---------- 区块 5 · 现金口径 ----------
+    // ---------- 区块 4 · 现金口径 ----------
     const showCash = computed(() => {
         if (drillSelection.dim === 'company') return true;
         const metrics = m.value;
@@ -567,38 +395,11 @@
     }
 
     /* 区块 4 */
-    /* 收入 / 成本两张饼图左右分开 */
-    .detail__breakdown {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--oa-gap-lg);
-    }
 
-    /* 两张饼图各自成一张子卡片：独立描边 + 顶部身份色条，
-       避免并排时左侧图例被误读成右侧饼图的图例 */
-    .detail__pie {
-        min-width: 0;
-        padding: 8px 10px 6px;
-        border: 1px solid var(--oa-border);
-        border-radius: var(--oa-radius-sm);
-        background: #fbfcfe;
-    }
 
-    .detail__pie--revenue {
-        border-top: 2px solid var(--oa-revenue);
-    }
 
-    .detail__pie--cost {
-        border-top: 2px solid var(--oa-cost);
-    }
 
-    .detail__pie--revenue .detail__pie-title::before {
-        background: var(--oa-revenue);
-    }
 
-    .detail__pie--cost .detail__pie-title::before {
-        background: var(--oa-cost);
-    }
 
     @media (max-width: 1700px) {
         .detail__cards {
@@ -606,57 +407,9 @@
         }
     }
 
-    @media (max-width: 1200px) {
-        .detail__breakdown {
-            grid-template-columns: minmax(0, 1fr);
-        }
-    }
 
-    .detail__pie-head {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 2px;
-        font-size: var(--oa-fs-xs);
-        color: var(--oa-text-3);
 
-        span:last-child {
-            font-weight: 600;
-            color: var(--oa-text-1);
-        }
-    }
 
-    .detail__pie-title {
-        position: relative;
-        padding-left: 9px;
-        font-size: var(--oa-fs-sm);
-        font-weight: 600;
-        color: var(--oa-text-1);
-
-        &::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 3px;
-            height: 11px;
-            border-radius: 2px;
-            background: var(--oa-text-4);
-        }
-    }
-
-    .detail__pie-note {
-        margin: 8px 0 0;
-        font-size: 11px;
-        line-height: 1.6;
-        color: var(--oa-text-4);
-
-        b {
-            color: var(--oa-text-3);
-        }
-    }
 
     .detail__list {
         display: flex;
