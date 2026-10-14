@@ -219,14 +219,22 @@
         return `${dim}:${key}`;
     }
 
-    /** store 行 → 树行（depth 按当前轴层级重算，保证切轴后层级标签一致） */
-    function toTreeRow(row: MetricRow, dim: DimKey, depth: number): TreeRow {
+    /**
+     * store 行 → 树行（depth 按当前轴层级重算，保证切轴后层级标签一致）。
+     *
+     * key 必须带**完整祖先路径**，不能只用 `${dim}:${key}`：
+     * 业务轴下同一个项目会挂在多个平台下（实测 6 个项目全部跨平台），
+     * 例如「卡牌项目 pj1」同时属于腾讯广告与巨量引擎。若两行共用 key，
+     * el-table 的懒加载会把它们当成同一行，导致子节点串位、行重复或整行丢失。
+     */
+    function toTreeRow(row: MetricRow, dim: DimKey, depth: number, parentKey = ''): TreeRow {
         const hasNextLevel = depth < axisLevels.value.length - 1;
+        const self = uid(dim, row.key);
         return {
             ...row,
             dim,
             dimKey: row.key,
-            key: uid(dim, row.key),
+            key: parentKey ? `${parentKey}|${self}` : self,
             depth,
             hasChildren: row.hasChildren && hasNextLevel,
         };
@@ -302,13 +310,16 @@
 
     /** 取某一行的下一层（带缓存，同一父节点只查一次 store） */
     function fetchChildren(parent: TreeRow, dim: DimKey): TreeRow[] {
-        const cacheKey = uid(parent.dim, parent.dimKey);
+        // 缓存键 = 父行的完整路径 key，避免同一节点在不同父节点下共用缓存
+        const cacheKey = parent.key;
         const cached = rawCache.get(cacheKey);
         if (cached) return cached;
 
         // 平台是「公司」直属的第一层：store 对 platform 传 parentId 会返回空数组
         const parentId = dim === 'platform' ? null : parent.dimKey;
-        const rows = store.queryRows(filter, dim, parentId).map((row) => toTreeRow(row, dim, parent.depth + 1));
+        const rows = store
+            .queryRows(filter, dim, parentId)
+            .map((row) => toTreeRow(row, dim, parent.depth + 1, parent.key));
         rawCache.set(cacheKey, rows);
         childCounts.set(cacheKey, rows.length);
         return rows;
@@ -327,7 +338,7 @@
     /** 名称后的灰色小字：已加载则显示「N 个中心」，未加载则提示可下钻的层级名 */
     function nextHint(row: TreeRow): string {
         const label = axisLevels.value[row.depth + 1]?.label ?? '';
-        const count = childCounts.get(uid(row.dim, row.dimKey));
+        const count = childCounts.get(row.key);
         return count === undefined ? `下钻${label}` : `${count} 个${label}`;
     }
 
@@ -382,7 +393,7 @@
         if (!table || !root) return false;
         table.toggleRowExpansion(root, true);
         await nextTick();
-        const firstLevel = rawCache.get(uid(root.dim, root.dimKey)) ?? [];
+        const firstLevel = rawCache.get(root.key) ?? [];
         if (!firstLevel.length) return false;
         firstLevel.forEach((row) => table.toggleRowExpansion(row, true));
         await nextTick();
