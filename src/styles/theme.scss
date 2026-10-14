@@ -1,0 +1,178 @@
+// ============================================================
+// 经营分析看板 · 设计令牌
+// ============================================================
+
+:root {
+    // 主色与语义色
+    --oa-primary: #4d94fa;
+    --oa-primary-deep: #2f7ce8;
+    --oa-primary-soft: #eaf2ff;
+    --oa-success: #12b566;
+    --oa-success-soft: #e7f8f0;
+    --oa-warning: #ff9140;
+    --oa-warning-soft: #fff3e8;
+    --oa-danger: #fd6464;
+    --oa-danger-soft: #ffecec;
+    --oa-purple: #8b5cf6;
+    --oa-cyan: #06b6d4;
+    --oa-pink: #f472b6;
+    --oa-info: #9ca3af;
+
+    // 文字层级
+    --oa-text-1: #1f2937;
+    --oa-text-2: #4b5563;
+    --oa-text-3: #6b7280;
+    --oa-text-4: #9ca3af;
+
+    // 背景与边框
+    --oa-bg: #f5f7ff;
+    --oa-bg-page: #f2f5fb;
+    --oa-card: #ffffff;
+    --oa-border: #e5e9f2;
+    --oa-border-light: #eef1f7;
+    --oa-hover: #f7f9fe;
+
+    // 圆角与阴影
+    --oa-radius-sm: 4px;
+    --oa-radius: 8px;
+    --oa-radius-lg: 12px;
+    --oa-shadow: 0 1px 3px rgba(31, 41, 55, 0.06), 0 1px 2px rgba(31, 41, 55, 0.04);
+    --oa-shadow-md: 0 4px 16px rgba(31, 41, 55, 0.08);
+
+    // 字号
+    --oa-fs-xs: 12px;
+    --oa-fs-sm: 13px;
+    --oa-fs-base: 14px;
+    --oa-fs-lg: 16px;
+    --oa-fs-xl: 20px;
+    --oa-fs-num: 26px;
+
+    // 口径固定配色（全站统一，勿随意改）
+    --oa-book: #4d94fa; // 账面利润 —— 蓝
+    --oa-operating: #12b566; // 经营利润 —— 绿
+    --oa-gap-color: #ff9140; // 口径差额色 —— 橙。注意：--oa-gap 现为「栅格间距 12px」，颜色一律用本令牌
+    --oa-revenue: #8b5cf6; // 收入 —— 紫
+    --oa-cost: #fd6464; // 成本 —— 红
+
+    // 成本科目配色
+    --oa-cost-ad: #fd6464; // 投放成本
+    --oa-cost-prepay: #ff9140; // 预付成本
+    --oa-cost-labor: #4d94fa; // 人工成本
+    --oa-cost-admin: #06b6d4; // 管理费用
+
+    // 收入科目配色
+    --oa-rev-liuliangzhu: #8b5cf6; // 流量主收入
+    --oa-rev-adgold: #f472b6; // 广告金
+    --oa-rev-share: #06b6d4; // 分成收入
+
+    // 布局
+    --oa-sider-w: 216px;
+    --oa-header-h: 56px;
+    --oa-space-sm: 8px;
+    --oa-gap: 12px; // 保留原名兼容既有页面（栅格间距）；颜色请用 --oa-gap-color（定义在「口径固定配色」区）
+    --oa-space: 12px;
+    --oa-space-lg: 16px;
+    --oa-gap-lg: 16px;
+}
+
+// ============================================================
+// 通用卡片 / 面板
+// ============================================================
+.oa-card {
+    background: var(--oa-card);
+    border: 1px solid var(--oa-border);
+    border-radius: var(--oa-radius);
+    box-shadow: var(--oa-shadow);
+}
+
+.oa-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--oa-gap);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--oa-border-light);
+}
+
+.oa-card__title {
+    position: relative;
+    padding-left: 10px;
+    font-size: var(--oa-fs-base);
+    font-weight: 600;
+    color: var(--oa-text-1);
+
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 14px;
+        border-radius: 2px;
+        background: var(--oa-primary);
+    }
+}
+
+.oa-card__sub {
+    font-size: var(--oa-fs-xs);
+    color: var(--oa-text-4);
+}
+
+.oa-card__body {
+    padding: var(--oa-gap-lg);
+}
+
+// ============================================================
+// 数字与涨跌
+// ============================================================
+.oa-num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+}
+
+.oa-up {
+    color: var(--oa-success);
+}
+
+.oa-down {
+    color: var(--oa-danger);
+}
+
+.oa-flat {
+    color: var(--oa-text-4);
+}
+
+// 通用工具类
+.oa-row {
+    display: flex;
+    align-items: center;
+}
+
+.oa-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.oa-muted {
+    color: var(--oa-text-3);
+}
+
+.oa-scroll {
+    overflow: auto;
+
+    &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #d5dbe7;
+        border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+}

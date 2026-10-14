@@ -1,0 +1,48 @@
+@use './theme' as *;
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+        sans-serif;
+    font-size: var(--oa-fs-sm);
+    color: var(--oa-text-1);
+    background-color: var(--oa-bg-page);
+}
+
+#app {
+    height: 100vh;
+}
+
+// ============================================================
+// Element Plus 局部对齐（不改全局主题，只做密度与配色收敛）
+// ============================================================
+.el-card {
+    --el-card-border-radius: var(--oa-radius);
+}
+
+.el-table {
+    font-size: var(--oa-fs-sm);
+    --el-table-header-bg-color: #f7f9fe;
+    --el-table-header-text-color: var(--oa-text-2);
+    --el-table-border-color: var(--oa-border-light);
+}
+
+.el-tabs__item {
+    font-size: var(--oa-fs-sm);
+}
+
+.el-button--small {
+    font-size: var(--oa-fs-xs);
+}
+
+// 数字类单元格右对齐 + 等宽数字
+.oa-num-cell {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
