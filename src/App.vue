@@ -59,14 +59,21 @@
 
     /**
      * 菜单按「经营叙事」排序，自上而下回答四个递进的问题：
-     *   结果（现在怎么样） → 构成（钱从哪来、花到哪去） → 主体（谁做出来的） → 模型（怎么算出来的）
+     *   结果（现在怎么样） → 分析（下钻到哪一层、哪个人） → 构成（钱从哪来、花到哪去） → 模型（怎么算出来的）
+     *
+     * 注意：「月度经营预估」不再单列页面 —— 它的三个模块（当月实时预估 / 滚动预估 / Cohort 回收）
+     * 已作为「模拟预估」板块挂在「逐层下钻」数据看板内，页面壳归档在 archive/forecast-page/。
      */
     const MENU = [
         {
             title: '经营结果',
+            items: [{ path: '/overview', title: '经营总览' }],
+        },
+        {
+            title: '经营分析',
             items: [
-                { path: '/overview', title: '经营总览' },
-                { path: '/forecast', title: '月度经营预估' },
+                { path: '/drilldown', title: '经营数据看板' },
+                { path: '/pitcher', title: '投手人效' },
             ],
         },
         {
@@ -74,13 +81,6 @@
             items: [
                 { path: '/revenue', title: '收入分析' },
                 { path: '/cost', title: '成本分析' },
-            ],
-        },
-        {
-            title: '组织与人员',
-            items: [
-                { path: '/drilldown', title: '逐层下钻' },
-                { path: '/pitcher', title: '投手人效' },
             ],
         },
         {

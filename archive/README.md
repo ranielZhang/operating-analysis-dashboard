@@ -42,3 +42,17 @@ import DataSource from './pages/datasource/index.vue';
 
 同一轮还把「月度经营利润」图表从 280px 压到 168px（收紧 grid 留白与字号），
 避免图表类组件独占首屏。
+
+## 追加归档（收敛为「数据看板」单页）
+
+| 模块 | 原来在哪 | 为什么摘掉 |
+|---|---|---|
+| `forecast-page/index.vue` | 月度经营预估页 `/forecast` | 该页仅由三个组件堆成，这三个组件已作为「模拟预估」板块挂到 `/drilldown` 数据看板内，页面壳成为 100% 重复。**`src/pages/forecast/components/` 保留在原位**，仍被数据看板引用。 |
+
+同一轮还做了：左菜单分组改为「经营结果 / 经营分析 / 收入与成本 / 模型与口径」；
+`/drilldown` 页面名由「逐层下钻」改为「经营数据看板」（逐层下钻作为副标题保留）；侧栏宽度 216px → 184px。
+
+### 恢复 /forecast 页面
+把 `archive/forecast-page/index.vue` 移回 `src/pages/forecast/index.vue`，
+在 `src/main.ts` 加回路由与 import，在 `src/App.vue` 菜单里加回条目，
+并把 `scripts/*.mjs` 的页面清单补回 `['月度经营预估', '/src/pages/forecast/index.vue']`。

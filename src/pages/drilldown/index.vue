@@ -1,12 +1,13 @@
 <template>
     <div class="drill-page">
-        <!-- 标题区：说明两条下钻轴的业务含义（给管理者看的一句话） -->
+        <!-- 标题区：说明两条下钻轴的业务含义 -->
         <header class="drill-page__head">
             <div class="drill-page__title">
-                <h2>逐层下钻</h2>
+                <h2>经营数据看板</h2>
                 <p class="drill-page__sub">
-                    按组织轴 <b>公司 → 中心 → 部门 → 小组 → 投手</b> 回答“谁在赚钱”；按业务轴
-                    <b>公司 → 平台 → 项目 → 游戏</b> 回答“什么在赚钱”。点击任意一行即可在右侧查看该层级的完整经营画像。
+                    逐层下钻：按组织轴 <b>公司 → 中心 → 部门 → 小组 → 投手</b> 回答“谁在赚钱”；按业务轴
+                    <b>公司 → 平台 → 项目 → 游戏</b> 回答“什么在赚钱”。点击任意一行即可在左侧查看该层级的完整经营画像，
+                    下方按当前范围推演本月落点与未来 6 个月的经营预估。
                 </p>
             </div>
             <div class="drill-page__actions">
@@ -20,18 +21,28 @@
             <span class="drill-page__scope-text">当前已按范围过滤：{{ scopeText }}（全局筛选栏可调整）</span>
         </div>
 
-        <!-- 主区域：左侧树形下钻表（2/3），右侧节点详情（1/3）；两侧各自内部滚动 -->
+        <!-- 主区域：左侧节点详情、右侧树形下钻表，左右各占一半；两侧各自内部滚动 -->
         <section class="drill-page__main">
-            <div class="drill-page__tree">
-                <DrillTreeTable />
-            </div>
             <div class="drill-page__detail">
                 <DrillDetailPanel />
             </div>
+            <div class="drill-page__tree">
+                <DrillTreeTable />
+            </div>
         </section>
 
-        <!-- 底部整行：组织 × 平台交叉矩阵 -->
-        <section class="drill-page__matrix">
+        <!-- 模拟预估：当月实时预估 + 未来滚动预估 + Cohort 回收曲线 -->
+        <section class="drill-page__forecast">
+            <div class="drill-page__section-head">
+                <h3>模拟预估</h3>
+                <p>
+                    把当前筛选范围当成一笔投资来推演：本月最终会是多少、未来 6 个月会怎样、每个月投出去的钱回收得怎么样。
+                    算法与参数说明见「预估参数配置」。
+                </p>
+            </div>
+            <CurrentMonthForecast />
+            <RollingForecast />
+            <CohortRecovery />
         </section>
     </div>
 </template>
@@ -40,11 +51,18 @@
     import { computed } from 'vue';
     import DrillTreeTable from './components/DrillTreeTable.vue';
     import DrillDetailPanel from './components/DrillDetailPanel.vue';
+    import CurrentMonthForecast from '@/pages/forecast/components/CurrentMonthForecast.vue';
+    import RollingForecast from '@/pages/forecast/components/RollingForecast.vue';
+    import CohortRecovery from '@/pages/forecast/components/CohortRecovery.vue';
     import { selectCompany } from './useDrillSelection';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import { CENTERS, DEPARTMENTS, GROUPS, PITCHERS, PLATFORMS, PROJECTS, GAMES } from '@/domain/dimensions';
 
-    /** 逐层下钻页面组装：只做布局，不取数；轴切换由 DrillTreeTable 内部负责，此处不重复放置 */
+    /**
+     * 经营数据看板（原「逐层下钻」）页面组装：只做布局，不取数。
+     * 结构：主区域（节点详情 | 树表）+ 模拟预估板块（复用月度预估页的三个模块）。
+     * 轴切换由 DrillTreeTable 内部负责，此处不重复放置。
+     */
     defineOptions({ name: 'DrilldownPage' });
 
     const { filter, hasFilter } = useAnalysisFilter();
@@ -60,20 +78,19 @@
         return `${names.slice(0, MAX_SHOW).join('、')} 等 ${names.length} 项`;
     }
 
-    /** 当前生效的范围过滤条件描述（无筛选时不展示提示条） */
+    /** 当前生效的组织 / 业务范围描述 */
     const scopeText = computed(() => {
         const parts: string[] = [];
-        if (filter.centerIds.length) parts.push(`中心：${nameText(filter.centerIds, CENTERS)}`);
-        if (filter.departmentIds.length) parts.push(`部门：${nameText(filter.departmentIds, DEPARTMENTS)}`);
-        if (filter.groupIds.length) parts.push(`小组：${nameText(filter.groupIds, GROUPS)}`);
-        if (filter.pitcherIds.length) parts.push(`投手：${nameText(filter.pitcherIds, PITCHERS)}`);
-        if (filter.platformIds.length) parts.push(`平台：${nameText(filter.platformIds, PLATFORMS)}`);
-        if (filter.projectIds.length) parts.push(`项目：${nameText(filter.projectIds, PROJECTS)}`);
-        if (filter.gameIds.length) parts.push(`游戏：${nameText(filter.gameIds, GAMES)}`);
-        return parts.join('；');
+        if (filter.centerIds.length) parts.push(`中心 ${nameText(filter.centerIds, CENTERS)}`);
+        if (filter.departmentIds.length) parts.push(`部门 ${nameText(filter.departmentIds, DEPARTMENTS)}`);
+        if (filter.groupIds.length) parts.push(`小组 ${nameText(filter.groupIds, GROUPS)}`);
+        if (filter.pitcherIds.length) parts.push(`投手 ${nameText(filter.pitcherIds, PITCHERS)}`);
+        if (filter.platformIds.length) parts.push(`平台 ${nameText(filter.platformIds, PLATFORMS)}`);
+        if (filter.projectIds.length) parts.push(`项目 ${nameText(filter.projectIds, PROJECTS)}`);
+        if (filter.gameIds.length) parts.push(`游戏 ${nameText(filter.gameIds, GAMES)}`);
+        return parts.join('；') || '部分范围';
     });
 
-    /** 回到全公司节点（清空下钻选中，不改变全局筛选） */
     function backToCompany() {
         selectCompany();
     }
@@ -150,10 +167,10 @@
         line-height: 1.5;
     }
 
-    /* 主区域：树表 2/3 + 详情 1/3，固定高度让两侧内部各自滚动 */
+    /* 主区域：详情 1/2 + 树表 1/2，固定高度让两侧内部各自滚动 */
     .drill-page__main {
         display: grid;
-        grid-template-columns: 2fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--oa-gap);
         align-items: stretch;
         min-height: 0;
@@ -173,11 +190,51 @@
         }
     }
 
-    .drill-page__matrix {
+    /* 模拟预估板块：与上方主区域拉开层次 */
+    .drill-page__forecast {
+        display: flex;
+        flex-direction: column;
+        gap: var(--oa-gap);
         min-width: 0;
+        padding-top: var(--oa-gap);
+        border-top: 1px solid var(--oa-border);
     }
 
-    /* 窄屏：主区域降为单列并取消固定高度，避免树表和详情被压缩 */
+    .drill-page__section-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        min-width: 0;
+
+        h3 {
+            position: relative;
+            margin: 0;
+            padding-left: 10px;
+            font-size: var(--oa-fs-lg);
+            font-weight: 600;
+            color: var(--oa-text-1);
+
+            &::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 3px;
+                height: 15px;
+                border-radius: 2px;
+                background: var(--oa-primary);
+            }
+        }
+
+        p {
+            margin: 0;
+            font-size: var(--oa-fs-xs);
+            color: var(--oa-text-4);
+        }
+    }
+
+    /* 窄屏：主区域降为单列并取消固定高度 */
     @media (max-width: 1400px) {
         .drill-page__main {
             grid-template-columns: 1fr;

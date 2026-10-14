@@ -25,8 +25,7 @@ function provideSsrInjections(app) {
 
 const PAGES = [
     ['经营总览', '/src/pages/overview/index.vue'],
-    ['逐层下钻', '/src/pages/drilldown/index.vue'],
-    ['月度预估', '/src/pages/forecast/index.vue'],
+    ['经营数据看板', '/src/pages/drilldown/index.vue'],
     ['收入分析', '/src/pages/revenue/index.vue'],
     ['成本分析', '/src/pages/cost/index.vue'],
     ['投手人效', '/src/pages/pitcher/index.vue'],

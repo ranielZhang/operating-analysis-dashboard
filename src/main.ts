@@ -10,7 +10,6 @@ import EChart from './components/EChart.vue';
 
 import Overview from './pages/overview/index.vue';
 import Drilldown from './pages/drilldown/index.vue';
-import Forecast from './pages/forecast/index.vue';
 import Revenue from './pages/revenue/index.vue';
 import Cost from './pages/cost/index.vue';
 import Pitcher from './pages/pitcher/index.vue';
@@ -19,8 +18,7 @@ import Settings from './pages/settings/index.vue';
 const routes: RouteRecordRaw[] = [
     { path: '/', redirect: '/overview' },
     { path: '/overview', name: 'Overview', component: Overview, meta: { title: '经营总览' } },
-    { path: '/drilldown', name: 'Drilldown', component: Drilldown, meta: { title: '逐层下钻' } },
-    { path: '/forecast', name: 'Forecast', component: Forecast, meta: { title: '月度经营预估' } },
+    { path: '/drilldown', name: 'Drilldown', component: Drilldown, meta: { title: '经营数据看板' } },
     { path: '/revenue', name: 'Revenue', component: Revenue, meta: { title: '收入分析' } },
     { path: '/cost', name: 'Cost', component: Cost, meta: { title: '成本分析' } },
     { path: '/pitcher', name: 'Pitcher', component: Pitcher, meta: { title: '投手人效' } },
