@@ -17,6 +17,8 @@ function buildServerWatch() {
 
 export default defineConfig({
     plugins: [vue()],
+    /** 本地开发保持根路径；GitHub Pages 构建时由 CI 传入仓库子路径 */
+    base: process.env.VITE_BASE_PATH || '/',
     /** 依赖预构建缓存移出项目目录，规避沙箱 / 同步盘干扰 */
     cacheDir: process.env.VITE_CACHE_DIR || '/tmp/oad-vite-cache',
     server: {
