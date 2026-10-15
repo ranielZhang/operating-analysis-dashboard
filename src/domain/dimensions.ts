@@ -1,4 +1,4 @@
-import type { CampaignMeta, GameMeta, OrgNode, PlatformMeta, ProjectMeta } from './types';
+import type { BusinessType, CampaignMeta, GameMeta, OrgNode, PlatformMeta, ProjectMeta } from './types';
 
 // ============================================================
 // 确定性伪随机（保证每次刷新数据一致，便于演示与评审）
@@ -440,3 +440,150 @@ export const TAX_RATE = 0.06;
 export const WELFARE_RATE = 0.045;
 /** 管理费用：办公费 = 人头 × 该值（元/人/月） */
 export const OFFICE_COST_PER_HEAD = 2600;
+
+// ============================================================
+// 五、三类业务演示口径（固定数，不随实际利润浮动）
+// ============================================================
+
+/** 自研流水 = 应确认收入 × 该系数，故意不等于 1 */
+export const FLOW_GROSS_FACTOR: Record<GameMeta['monetize'], number> = {
+    iaa: 1.35,
+    iap: 1.22,
+    mix: 1.28,
+};
+
+/** 每个游戏在全部历史月份上的其他直接成本（元），按选中月数占数据月数分摊 */
+export const OTHER_DIRECT_PER_GAME = 2_400_000;
+
+/** 公司可动用现金（元），只挂在公司节点 */
+export const AVAILABLE_CASH = 86_000_000;
+
+/** 每月经营利润预算（元）。三类相加等于公司。 */
+export const MONTHLY_BUDGET_PROFIT: Record<BusinessType, number> = {
+    self_op: 1_600_000,
+    sale: 400_000,
+    external: 200_000,
+};
+
+export const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
+    self_op: '自研运营',
+    sale: '游戏出售',
+    external: '外部发行投放',
+};
+
+export interface BusinessDeal {
+    id: string;
+    businessType: 'sale' | 'external';
+    gameId: string;
+    projectId: string;
+    name: string;
+    /** 出售为合同额，外部服务为客户预算 */
+    contractOrBudget: number;
+    /** 确认为收入的比例，小于 1 */
+    recognizeRatio: number;
+    /** 回款占确认收入的比例，小于 1 */
+    collectRatio: number;
+    /** 全部历史月份上的研发投入。外部服务为 0 */
+    rdInvest: number;
+    /** 全部历史月份上的其他直接成本 */
+    otherDirect: number;
+}
+
+export const BUSINESS_DEALS: BusinessDeal[] = [
+    {
+        id: 'sale-g1',
+        businessType: 'sale',
+        gameId: 'g1',
+        projectId: 'pj1',
+        name: '神域卡牌出售',
+        contractOrBudget: 18_000_000,
+        recognizeRatio: 0.72,
+        collectRatio: 0.64,
+        rdInvest: 2_400_000,
+        otherDirect: 360_000,
+    },
+    {
+        id: 'sale-g4',
+        businessType: 'sale',
+        gameId: 'g4',
+        projectId: 'pj2',
+        name: '糖果消消乐出售',
+        contractOrBudget: 9_600_000,
+        recognizeRatio: 0.55,
+        collectRatio: 0.8,
+        rdInvest: 1_200_000,
+        otherDirect: 180_000,
+    },
+    {
+        id: 'sale-g7',
+        businessType: 'sale',
+        gameId: 'g7',
+        projectId: 'pj3',
+        name: '热血传奇授权',
+        contractOrBudget: 15_000_000,
+        recognizeRatio: 0.4,
+        collectRatio: 0.5,
+        rdInvest: 1_800_000,
+        otherDirect: 240_000,
+    },
+    {
+        id: 'sale-g12',
+        businessType: 'sale',
+        gameId: 'g12',
+        projectId: 'pj5',
+        name: '守护塔防出售',
+        contractOrBudget: 3_000_000,
+        recognizeRatio: 0.35,
+        collectRatio: 0.7,
+        rdInvest: 6_000_000,
+        otherDirect: 200_000,
+    },
+    {
+        id: 'ext-g2',
+        businessType: 'external',
+        gameId: 'g2',
+        projectId: 'pj1',
+        name: '幻境卡牌代投',
+        contractOrBudget: 8_000_000,
+        recognizeRatio: 0.25,
+        collectRatio: 0.6,
+        rdInvest: 0,
+        otherDirect: 150_000,
+    },
+    {
+        id: 'ext-g6',
+        businessType: 'external',
+        gameId: 'g6',
+        projectId: 'pj2',
+        name: '宝石消消乐代投',
+        contractOrBudget: 5_000_000,
+        recognizeRatio: 0.3,
+        collectRatio: 0.45,
+        rdInvest: 0,
+        otherDirect: 90_000,
+    },
+    {
+        id: 'ext-g10',
+        businessType: 'external',
+        gameId: 'g10',
+        projectId: 'pj4',
+        name: '梦想餐厅发行服务',
+        contractOrBudget: 6_500_000,
+        recognizeRatio: 0.2,
+        collectRatio: 0.5,
+        rdInvest: 0,
+        otherDirect: 120_000,
+    },
+    {
+        id: 'ext-g15',
+        businessType: 'external',
+        gameId: 'g15',
+        projectId: 'pj6',
+        name: '跳跳大冒险代投',
+        contractOrBudget: 4_200_000,
+        recognizeRatio: 0.22,
+        collectRatio: 0.4,
+        rdInvest: 0,
+        otherDirect: 80_000,
+    },
+];

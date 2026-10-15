@@ -217,6 +217,22 @@ export const EMPTY_METRICS: Metrics = {
     cumSpend: 0,
     cumExp: 0,
     perCapitaProfit: 0,
+    grossAmount: 0,
+    cashCollection: 0,
+    rdInvest: 0,
+    otherDirectCost: 0,
+    projectProfit: 0,
+    rdShare: 0,
+    issueShare: 0,
+    budgetProfit: 0,
+    profitAttainment: 0,
+    availableCash: null,
+    runwayMonths: null,
+    matureProfit: 0,
+    newProjectNeed: 0,
+    accrualSelf: 0,
+    accrualSale: 0,
+    accrualExternal: 0,
 };
 
 /** 无数据判定：成本、投放、收入、人数全为 0 */

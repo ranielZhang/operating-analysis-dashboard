@@ -77,6 +77,18 @@
                     />
                 </div>
 
+                <div v-if="extraCards.length" class="detail__cards">
+                    <MetricCard
+                        v-for="card in extraCards"
+                        :key="card.label"
+                        :label="card.label"
+                        :value="card.value"
+                        :format="card.format"
+                        size="sm"
+                    />
+                </div>
+                <p v-if="extraNote" class="detail__note">{{ extraNote }}</p>
+
                 <!-- 区块 3 · 月度趋势 -->
                 <section class="detail__block detail__block--trend">
                     <div class="detail__block-head">
@@ -90,6 +102,14 @@
                 <section class="detail__block">
                     <div class="detail__block-head">
                         <span class="detail__block-title">结构明细</span>
+                    </div>
+                    <div v-if="mixRows.length" class="detail__mix">
+                        <span v-for="item in mixRows" :key="item.name" class="detail__mix-item">
+                            <i :style="{ background: item.color }" />
+                            {{ item.name }}
+                            <b class="oa-num">{{ money(item.value) }}</b>
+                            <em class="oa-num">{{ percent(item.share) }}</em>
+                        </span>
                     </div>
                     <div class="detail__breakdown">
                         <div v-for="panel in breakdownPanels" :key="panel.key" class="detail__pie-card">
@@ -133,7 +153,8 @@
     import MetricCard from '@/components/MetricCard.vue';
     import EChart from '@/components/EChart.vue';
     import { store } from '@/domain/store';
-    import type { Granularity } from '@/domain/types';
+    import type { BusinessType, Granularity } from '@/domain/types';
+    import { BUSINESS_TYPE_LABEL } from '@/domain/businessLayer';
     import { GAME_MAP, ORG_MAP } from '@/domain/dimensions';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import { money, monthLabel, percent, ratio, toWan } from '@/utils/format';
@@ -147,10 +168,18 @@
     /** 单节点指标；节点被筛选条件排除时为 null */
     const m = computed(() => store.metricsOf(filter, drillSelection.dim, drillSelection.key));
 
-    // ---------- 区块 1 · 节点头部元数据 ----------
-    const orgNode = computed(() => ORG_MAP.get(drillSelection.key) ?? null);
+    function plainId(key: string): string {
+        return key.includes('|') ? (key.split('|')[1] ?? key) : key;
+    }
 
-    const gameMeta = computed(() => GAME_MAP.get(drillSelection.key) ?? null);
+    const bizType = computed<BusinessType | null>(() => {
+        if (drillSelection.dim === 'businessType') return drillSelection.key as BusinessType;
+        if (drillSelection.key.includes('|')) return drillSelection.key.split('|')[0] as BusinessType;
+        return null;
+    });
+
+    const orgNode = computed(() => ORG_MAP.get(drillSelection.key) ?? null);
+    const gameMeta = computed(() => GAME_MAP.get(plainId(drillSelection.key)) ?? null);
 
     const MONETIZE_LABEL: Record<'iaa' | 'iap' | 'mix', string> = {
         iaa: 'IAA 广告变现',
@@ -158,6 +187,76 @@
         mix: '混合变现',
     };
     const monetizeLabel = computed(() => (gameMeta.value ? MONETIZE_LABEL[gameMeta.value.monetize] : ''));
+
+    const extraCards = computed(() => {
+        const row = m.value;
+        if (!row) return [];
+        const dim = drillSelection.dim;
+        const type = bizType.value;
+        const moneyCard = (label: string, value: number) => ({ label, value, format: 'moneyAuto' as const });
+        if (dim === 'company') {
+            return [
+                { label: '预算达成', value: row.profitAttainment, format: 'percent' as const },
+                moneyCard('确认收入', row.accrualRevenue),
+                moneyCard('回款', row.cashCollection),
+                moneyCard('可动用现金', row.availableCash ?? 0),
+            ];
+        }
+        if (type === 'self_op' && (dim === 'project' || dim === 'game')) {
+            return [
+                moneyCard('项目利润', row.projectProfit),
+                moneyCard('研发归属', row.rdShare),
+                moneyCard('发行归属', row.issueShare),
+                moneyCard('回款', row.cashCollection),
+            ];
+        }
+        if (type === 'sale') {
+            return [
+                moneyCard('合同额', row.grossAmount),
+                moneyCard('确认收入', row.accrualRevenue),
+                moneyCard('回款', row.cashCollection),
+                moneyCard('项目利润', row.projectProfit),
+            ];
+        }
+        if (type === 'external') {
+            return [
+                moneyCard('客户预算', row.grossAmount),
+                moneyCard('确认收入', row.accrualRevenue),
+                moneyCard('回款', row.cashCollection),
+                moneyCard('项目利润', row.projectProfit),
+            ];
+        }
+        if (type === 'self_op') {
+            return [
+                moneyCard('流水', row.grossAmount),
+                moneyCard('确认收入', row.accrualRevenue),
+                moneyCard('回款', row.cashCollection),
+                moneyCard('项目利润', row.projectProfit),
+            ];
+        }
+        return [];
+    });
+
+    const extraNote = computed(() => {
+        const row = m.value;
+        const type = bizType.value;
+        const dim = drillSelection.dim;
+        if (!row || type !== 'self_op' || (dim !== 'project' && dim !== 'game')) return '';
+        if (row.projectProfit > 0) return '内部归属，不重复扣减公司利润。本期无实际支付。';
+        return '项目亏损，不产生正向归属。本期无实际支付。';
+    });
+
+    const mixRows = computed(() => {
+        const row = m.value;
+        if (!row || drillSelection.dim !== 'company') return [];
+        const total = row.accrualSelf + row.accrualSale + row.accrualExternal;
+        if (total <= 0) return [];
+        return [
+            { name: BUSINESS_TYPE_LABEL.self_op, value: row.accrualSelf, color: '#4d94fa', share: row.accrualSelf / total },
+            { name: BUSINESS_TYPE_LABEL.sale, value: row.accrualSale, color: '#ff9140', share: row.accrualSale / total },
+            { name: BUSINESS_TYPE_LABEL.external, value: row.accrualExternal, color: '#8b5cf6', share: row.accrualExternal / total },
+        ];
+    });
 
     // ---------- 区块 3 · 走势：跟随顶部「按年 / 按季度 / 按月」 ----------
     const TREND_TITLE: Record<Granularity, string> = {
@@ -290,8 +389,8 @@
         return r.liuliangzhu + r.adGold + r.iapShare;
     });
 
-    /** 成本合计 = 业务成本 + 人工 + 管理费用（当前口径），与下列 7 个科目之和恒等 */
-    const costTotal = computed(() => m.value?.totalCost ?? 0);
+    /** 成本合计含其他直接成本。其他直接成本不从经营利润里扣，只在项目利润和这张饼图里出现。 */
+    const costTotal = computed(() => (m.value ? m.value.totalCost + m.value.otherDirectCost : 0));
 
     const revenueDefs = computed<BreakdownDef[]>(() => {
         const r = m.value?.revenueByType;
@@ -318,6 +417,7 @@
             { name: '项目奖金', value: c?.projectBonus ?? 0, color: '#c9ddfe' },
             { name: '福利费', value: c?.welfare ?? 0, color: '#06b6d4' },
             { name: '办公费', value: c?.office ?? 0, color: '#5fd4e6' },
+            { name: '其他直接成本', value: m.value?.otherDirectCost ?? 0, color: '#94a3b8' },
         ];
     });
 
@@ -462,6 +562,37 @@
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--oa-gap);
+    }
+
+    .detail__note {
+        margin: 0;
+        font-size: var(--oa-fs-xs);
+        color: var(--oa-text-3);
+    }
+
+    .detail__mix {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        font-size: var(--oa-fs-xs);
+        color: var(--oa-text-2);
+    }
+
+    .detail__mix-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
+        i {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        em {
+            font-style: normal;
+            color: var(--oa-text-4);
+        }
     }
 
     /* 区块 3 / 4 通用块 */

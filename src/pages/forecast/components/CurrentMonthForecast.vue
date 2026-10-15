@@ -39,6 +39,10 @@
                         <i class="legend__swatch legend__swatch--profit" />
                         经营利润完成度 <b class="oa-num" :class="completionTone">{{ percent(profitCompletion) }}</b>
                     </span>
+                    <span class="legend__item">
+                        预算达成
+                        <b class="oa-num">{{ budgetText }}</b>
+                    </span>
                 </div>
             </section>
 
@@ -105,6 +109,11 @@
     const realizedSpend = computed(() => realized.value?.spend ?? 0);
     const realizedLaborAdmin = computed(() => (realized.value ? realized.value.laborCost + realized.value.adminCost : 0));
     const realizedProfit = computed(() => realized.value?.operatingProfit ?? 0);
+    const budgetText = computed(() => {
+        const row = realized.value;
+        if (!row || row.budgetProfit <= 0) return '—';
+        return percent(row.operatingProfit / row.budgetProfit);
+    });
 
     // ---------- 时间与进度 ----------
     const daysRemaining = computed(() => Math.max(0, store.daysInMonth - store.daysElapsed));

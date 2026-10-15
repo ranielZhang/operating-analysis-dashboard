@@ -78,6 +78,17 @@
                         <template #default="{ row }">{{ money(row.accrualRevenue) }}</template>
                     </el-table-column>
 
+                    <el-table-column prop="cashCollection" label="回款" min-width="110" align="right" class="oa-num">
+                        <template #default="{ row }">{{ money(row.cashCollection) }}</template>
+                    </el-table-column>
+
+                    <el-table-column prop="profitAttainment" label="预算达成" min-width="100" align="right" class="oa-num">
+                        <template #default="{ row }">
+                            <span v-if="row.budgetProfit > 0">{{ percent(row.profitAttainment) }}</span>
+                            <span v-else class="oa-flat">—</span>
+                        </template>
+                    </el-table-column>
+
                     <el-table-column prop="bookProfit" label="账面利润" min-width="110" align="right" class="oa-num">
                         <template #default="{ row }">
                             <span :class="trendClass(row.bookProfit)">{{ money(row.bookProfit) }}</span>
@@ -318,8 +329,8 @@
         const cached = rawCache.get(cacheKey);
         if (cached) return cached;
 
-        // 平台是「公司」直属的第一层：store 对 platform 传 parentId 会返回空数组
-        const parentId = dim === 'platform' ? null : parent.dimKey;
+        // 业务轴下平台的父级是业务类型，把业务类型 id 传下去，才能只列出该类有记录的平台
+        const parentId = parent.dimKey;
         const rows = store
             .queryRows(filter, dim, parentId)
             .map((row) => toTreeRow(row, dim, parent.depth + 1, parent.key));
@@ -347,7 +358,7 @@
 
     /** 成本中心：没有投放消耗但有人工成本（研发中心 / 中台 / 职能中心及其下级） */
     function isCostCenter(row: TreeRow): boolean {
-        return row.spend <= 0 && row.laborCost > 0;
+        return drillAxis.value === 'org' && row.spend <= 0 && row.laborCost > 0;
     }
 
     function levelLabel(depth: number): string {
@@ -396,6 +407,10 @@
         if (!table || !root) return false;
         table.toggleRowExpansion(root, true);
         await nextTick();
+        if (drillAxis.value === 'biz') {
+            table.doLayout();
+            return (rawCache.get(root.key) ?? []).length > 0;
+        }
         const firstLevel = rawCache.get(root.key) ?? [];
         if (!firstLevel.length) return false;
         firstLevel.forEach((row) => table.toggleRowExpansion(row, true));
@@ -477,6 +492,10 @@
                     return num(money(totalSpend));
                 case 'accrualRevenue':
                     return num(money(totalAccrual));
+                case 'cashCollection':
+                    return num(money(sum((row) => row.cashCollection)));
+                case 'profitAttainment':
+                    return num('—');
                 case 'bookProfit':
                     return num(money(totalBookProfit), trendClass(totalBookProfit));
                 case 'operatingProfit':

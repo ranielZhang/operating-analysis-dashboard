@@ -35,7 +35,8 @@
     import type { EChartsOption } from 'echarts';
 
     import { store } from '@/domain/store';
-    import type { ForecastPoint } from '@/domain/types';
+    import type { BusinessType, ForecastPoint } from '@/domain/types';
+    import { BUSINESS_TYPE_LABEL } from '@/domain/businessLayer';
     import { basisLabel, useAnalysisFilter } from '@/composables/useAnalysisFilter';
 
     import PanelCard from '@/components/PanelCard.vue';
@@ -63,6 +64,9 @@
         revenue: '#8b5cf6', // var(--oa-revenue)
         optimistic: '#8fd6ae', // 乐观情景（任务指定）
         pessimistic: '#ffb0b0', // 悲观情景（任务指定）
+        self: '#4d94fa',
+        sale: '#ff9140',
+        external: '#8b5cf6',
         axisLine: '#e2e8f0',
         axisText: '#94a3b8',
         splitLine: '#f1f5f9',
@@ -77,6 +81,39 @@
 
     // ---------- 数据 ----------
     const points = computed<ForecastPoint[]>(() => store.forecast(filter, 6));
+
+    const TYPE_LINES: Array<{ type: BusinessType; name: string; color: string }> = [
+        { type: 'self_op', name: BUSINESS_TYPE_LABEL.self_op, color: '#4d94fa' },
+        { type: 'sale', name: BUSINESS_TYPE_LABEL.sale, color: '#ff9140' },
+        { type: 'external', name: BUSINESS_TYPE_LABEL.external, color: '#8b5cf6' },
+    ];
+
+    /** 已发生月份按三类拆开的经营利润。预估月份按最近一个实际月的结构分摊中性预估。 */
+    const typeProfit = computed(() => {
+        const pts = points.value;
+        const actual = TYPE_LINES.map((line) =>
+            pts.map((point) => {
+                if (!point.actual) return null;
+                if (filter.businessTypes.length && !filter.businessTypes.includes(line.type)) return null;
+                const row = store.metricsOf(
+                    { ...filter, startMonth: point.month, endMonth: point.month, businessTypes: [line.type] },
+                    'company',
+                    'company',
+                );
+                return row?.operatingProfit ?? 0;
+            }),
+        );
+        const last = pts.reduce((found, point, index) => (point.actual ? index : found), -1);
+        const weights = actual.map((series) => (last >= 0 ? series[last] ?? 0 : 0));
+        const weightSum = weights.reduce((sum, value) => sum + (value ?? 0), 0);
+        return actual.map((series, lineIndex) =>
+            series.map((value, index) => {
+                if (value !== null) return value;
+                if (last < 0 || index < last || weightSum === 0) return null;
+                return (pts[index].profit * (weights[lineIndex] ?? 0)) / weightSum;
+            }),
+        );
+    });
 
     const hasData = computed(() => points.value.length > 0);
 
@@ -263,20 +300,22 @@
             },
         ];
 
-        // 实际段：实线 + 圆点
-        if (splitIdx.value >= 0) {
+        // 已发生月份按三类业务分色；预估段沿用同一颜色的虚线，三条加总等于中性预估
+        TYPE_LINES.forEach((line, lineIndex) => {
+            const data = typeProfit.value[lineIndex] ?? [];
+            if (!data.some((value) => value !== null)) return;
             series.push({
-                name: actualName,
+                name: line.name,
                 type: 'line',
-                data: actualProfit,
+                data,
                 smooth: false,
                 symbol: 'circle',
-                symbolSize: 6,
-                lineStyle: { width: 2, color: C.operating },
-                itemStyle: { color: C.operating },
+                symbolSize: 5,
+                lineStyle: { width: 2, color: line.color },
+                itemStyle: { color: line.color },
                 z: 6,
             });
-        }
+        });
 
         // 中性预估：虚线（从最后一个实际点连出）+ 零线 / 今日分界 markLine + 预估区 markArea
         series.push({
@@ -342,9 +381,7 @@
             },
         );
 
-        const legendData = [actualName, forecastName, optimisticName, pessimisticName, revenueName].filter((n) =>
-            splitIdx.value >= 0 ? true : n !== actualName,
-        );
+        const legendData = [...TYPE_LINES.map((line) => line.name), forecastName, optimisticName, pessimisticName, revenueName];
 
         return {
             grid: { left: 58, right: 62, top: 40, bottom: 26 },

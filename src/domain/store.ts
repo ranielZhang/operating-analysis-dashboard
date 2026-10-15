@@ -34,9 +34,13 @@ import {
     TAX_RATE,
     TODAY,
     WELFARE_RATE,
+    AVAILABLE_CASH,
+    BUSINESS_DEALS,
     descendantsOf,
     mulberry32,
 } from './dimensions';
+import { applyBusiness, emptyBusiness, wantsSelf, zeroMoney, BUSINESS_TYPE_LABEL, type BizNode, type SelfGameStat } from './businessLayer';
+import type { BusinessType } from './types';
 import type {
     AlertItem,
     AnalysisFilter,
@@ -721,6 +725,7 @@ export function buildMetrics(agg: FlowAgg, cost: OrgMonthCost, basis: 'book' | '
         efficiencyRatio: labor > 0 ? operatingProfit / labor : 0,
         headcount: cost.headcount,
         perCapitaProfit: cost.headcount > 0 ? operatingProfit / cost.headcount : 0,
+        ...emptyBusiness(),
     };
 }
 
@@ -923,6 +928,189 @@ function grow(cur: number, base: number | undefined): number | null {
     return (cur - base) / Math.abs(base);
 }
 
+const BUSINESS_ORDER: BusinessType[] = ['self_op', 'sale', 'external'];
+
+function isBusinessType(value: string): value is BusinessType {
+    return value === 'self_op' || value === 'sale' || value === 'external';
+}
+
+function selfGameStats(filter: AnalysisFilter, scope: Scope): SelfGameStat[] {
+    const key = [
+        scope.monthIdx.join(','),
+        filter.businessTypes.join(','),
+        filter.gameIds.join(','),
+        filter.projectIds.join(','),
+        filter.platformIds.join(','),
+        filter.basis,
+        String(filter.roiWindow),
+    ].join('|');
+    const hit = selfGameCache.get(key);
+    if (hit) return hit;
+    const totals = totalsOf(scope);
+    const pool = poolOf(scope);
+    const stats = GAMES.filter((game) => {
+        if (filter.gameIds.length && !filter.gameIds.includes(game.id)) return false;
+        if (filter.projectIds.length && !filter.projectIds.includes(game.projectId)) return false;
+        if (filter.platformIds.length) {
+            const project = PROJECTS.find((item) => item.id === game.projectId);
+            if (!project || !project.platformIds.some((id) => filter.platformIds.includes(id))) return false;
+        }
+        return true;
+    }).map((game) => {
+        const raw = businessMetrics(filter, scope, 'game', game.id, totals, pool);
+        return {
+            id: game.id,
+            projectId: game.projectId,
+            accrual: raw.accrualRevenue,
+            cash: raw.cashRevenue,
+            labor: raw.laborCost,
+            spend: raw.spend,
+            admin: raw.adminCost,
+            operatingProfit: raw.operatingProfit,
+            monetize: game.monetize,
+            stage: game.stage,
+        };
+    });
+    selfGameCache.set(key, stats);
+    return stats;
+}
+
+const selfGameCache = new Map<string, SelfGameStat[]>();
+
+function blankMetrics(basis: AnalysisFilter['basis']): Metrics {
+    return zeroMoney(buildMetrics(emptyFlowAgg(), zeroCost(), basis));
+}
+
+function companyRaw(filter: AnalysisFilter, scope: Scope): Metrics {
+    if (!wantsSelf(filter.businessTypes)) return blankMetrics(filter.basis);
+    return buildMetrics(sumCampaigns(scope.campaignIds, scope), poolOf(scope), filter.basis);
+}
+
+function rawForNode(filter: AnalysisFilter, scope: Scope, node: BizNode): Metrics {
+    const selfOn = wantsSelf(filter.businessTypes);
+    if (node.level === 'company' || (node.level === 'businessType' && node.type === 'self_op')) {
+        return node.type === 'self_op' && !selfOn ? blankMetrics(filter.basis) : companyRaw(filter, scope);
+    }
+    if (node.level === 'businessType') return blankMetrics(filter.basis);
+    if (selfOn && node.type === 'self_op' && node.id && (node.level === 'platform' || node.level === 'project' || node.level === 'game')) {
+        return businessMetrics(filter, scope, node.level, node.id, totalsOf(scope), poolOf(scope));
+    }
+    return blankMetrics(filter.basis);
+}
+
+function runwayMonths(filter: AnalysisFilter, scope: Scope): number | null {
+    const end = CURRENT_MONTH_IDX - 1;
+    const start = end - 2;
+    if (start < 0) return null;
+    const monthIdx = [start, start + 1, end];
+    const sub: Scope = { ...scope, monthIdx, monthKeys: monthIdx.map((index) => MONTHS[index]) };
+    const viewed = applyBusiness(companyRaw(filter, sub), { level: 'company' }, 3, filter.basis, filter, selfGameStats(filter, sub), null);
+    const net = viewed.spend + viewed.otherDirectCost + viewed.laborCost + viewed.adminCost - viewed.cashCollection;
+    const avg = net / 3;
+    return avg > 0 ? AVAILABLE_CASH / avg : null;
+}
+
+function present(filter: AnalysisFilter, scope: Scope, node: BizNode): Metrics {
+    const raw = node.level === 'org' ? blankMetrics(filter.basis) : rawForNode(filter, scope, node);
+    const games = node.level === 'org' ? [] : selfGameStats(filter, scope);
+    const runway = node.level === 'company' ? runwayMonths(filter, scope) : null;
+    return applyBusiness(raw, node, scope.monthIdx.length || 1, filter.basis, filter, games, runway);
+}
+
+function bizRows(filter: AnalysisFilter, scope: Scope, groupBy: DimKey, parentId: string | null): MetricRow[] | null {
+    if (groupBy === 'businessType') {
+        const types = filter.businessTypes.length ? filter.businessTypes : BUSINESS_ORDER;
+        return types.map((type) => {
+            const metrics = present(filter, scope, { level: 'businessType', type });
+            return {
+                key: type,
+                name: BUSINESS_TYPE_LABEL[type],
+                parentId: 'company',
+                depth: 1,
+                hasChildren: true,
+                mom: null,
+                yoy: null,
+                ...metrics,
+            };
+        });
+    }
+    if (groupBy === 'platform' && parentId && isBusinessType(parentId)) {
+        const games = GAMES.filter((game) => {
+            if (filter.gameIds.length && !filter.gameIds.includes(game.id)) return false;
+            if (parentId !== 'self_op' && !BUSINESS_DEALS.some((deal) => deal.businessType === parentId && deal.gameId === game.id)) {
+                return false;
+            }
+            return true;
+        });
+        const platformIds = new Set<string>();
+        for (const game of games) {
+            PROJECTS.find((project) => project.id === game.projectId)?.platformIds.forEach((id) => platformIds.add(id));
+        }
+        return PLATFORMS.filter((platform) => platformIds.has(platform.id) && (!filter.platformIds.length || filter.platformIds.includes(platform.id))).map(
+            (platform) => {
+                const metrics = present(filter, scope, { level: 'platform', type: parentId, id: platform.id });
+                return {
+                    key: `${parentId}|${platform.id}`,
+                    name: platform.name,
+                    parentId,
+                    depth: 2,
+                    hasChildren: true,
+                    mom: null,
+                    yoy: null,
+                    ...metrics,
+                };
+            },
+        );
+    }
+    const parsed = parentId?.includes('|') ? parentId.split('|') : null;
+    if (parsed && isBusinessType(parsed[0]) && parsed[1]) {
+        const type = parsed[0];
+        const parentKey = parsed[1];
+        if (groupBy === 'project') {
+            const projects = PROJECTS.filter((project) => project.platformIds.includes(parentKey) && (!filter.projectIds.length || filter.projectIds.includes(project.id)));
+            return projects
+                .filter((project) => {
+                    if (type === 'self_op') return GAMES.some((game) => game.projectId === project.id);
+                    return BUSINESS_DEALS.some((deal) => deal.businessType === type && deal.projectId === project.id);
+                })
+                .map((project) => {
+                    const metrics = present(filter, scope, { level: 'project', type, id: project.id });
+                    return {
+                        key: `${type}|${project.id}`,
+                        name: project.name,
+                        parentId,
+                        depth: 3,
+                        hasChildren: true,
+                        mom: null,
+                        yoy: null,
+                        ...metrics,
+                    };
+                });
+        }
+        if (groupBy === 'game') {
+            return GAMES.filter((game) => {
+                if (game.projectId !== parentKey) return false;
+                if (filter.gameIds.length && !filter.gameIds.includes(game.id)) return false;
+                if (type !== 'self_op' && !BUSINESS_DEALS.some((deal) => deal.businessType === type && deal.gameId === game.id)) return false;
+                return true;
+            }).map((game) => {
+                const metrics = present(filter, scope, { level: 'game', type, id: game.id });
+                return {
+                    key: `${type}|${game.id}`,
+                    name: type === 'self_op' ? game.name : (BUSINESS_DEALS.find((deal) => deal.businessType === type && deal.gameId === game.id)?.name ?? game.name),
+                    parentId,
+                    depth: 4,
+                    hasChildren: false,
+                    mom: null,
+                    yoy: null,
+                    ...metrics,
+                };
+            });
+        }
+    }
+    return null;
+}
+
 export const store: StoreApi = {
     months: MONTHS,
     currentMonth: CURRENT_MONTH,
@@ -944,6 +1132,7 @@ export const store: StoreApi = {
             platformIds: [],
             projectIds: [],
             gameIds: [],
+            businessTypes: [],
             ...over,
         };
     },
@@ -970,21 +1159,16 @@ export const store: StoreApi = {
         }
 
         if (groupBy === 'company') {
-            const agg = sumCampaigns(scope.campaignIds, scope);
-            const cost = poolOf(scope);
-            const prevScope = resolveScope(shiftFilter(filter, -monthCountOf(filter)));
-            const prevAgg = sumCampaigns(prevScope.campaignIds, prevScope);
-            const m = buildMetrics(agg, cost, filter.basis);
-            const p = buildMetrics(prevAgg, poolOf(prevScope), filter.basis);
+            const metrics = present(filter, scope, { level: 'company' });
             rows.push({
                 key: 'company',
                 name: ORG_MAP.get('company')?.name ?? '全公司',
                 parentId: null,
                 depth: 0,
                 hasChildren: true,
-                mom: grow(m.profit, p.profit),
+                mom: null,
                 yoy: null,
-                ...m,
+                ...metrics,
             });
             return rows;
         }
@@ -998,6 +1182,7 @@ export const store: StoreApi = {
             for (const item of membersOf(groupBy, parentId)) {
                 if (!inScope.has(item.key)) continue;
                 const m = orgMetrics(filter, scope, level, item.key);
+                const shown = wantsSelf(filter.businessTypes) ? applyBusiness(m, { level: 'org' }, scope.monthIdx.length || 1, filter.basis, filter, [], null) : zeroMoney(m);
                 const p = orgMetrics(prevFilter, prevScope, level, item.key);
                 const y = orgMetrics(shiftFilter(filter, -12), yoyScope, level, item.key);
                 rows.push({
@@ -1008,11 +1193,14 @@ export const store: StoreApi = {
                     hasChildren: item.hasChildren,
                     mom: grow(m.profit, p.profit),
                     yoy: grow(m.profit, y.profit),
-                    ...m,
+                    ...shown,
                 });
             }
             return rows;
         }
+
+        const layered = bizRows(filter, scope, groupBy, parentId);
+        if (layered) return layered;
 
         const dim = groupBy as FlowDim;
         const totals = totalsOf(scope);
@@ -1066,12 +1254,23 @@ export const store: StoreApi = {
     metricsOf(filter, groupBy, key): Metrics | null {
         const scope = resolveScope(filter);
         if (groupBy === 'company' || groupBy === 'month') {
-            const agg = sumCampaigns(scope.campaignIds, scope);
-            return buildMetrics(agg, poolOf(scope), filter.basis);
+            return present(filter, scope, { level: 'company' });
+        }
+        if (groupBy === 'businessType' && isBusinessType(key)) {
+            return present(filter, scope, { level: 'businessType', type: key });
+        }
+        if (key.includes('|')) {
+            const [type, id] = key.split('|');
+            if (isBusinessType(type) && id && (groupBy === 'platform' || groupBy === 'project' || groupBy === 'game')) {
+                return present(filter, scope, { level: groupBy, type, id });
+            }
         }
         if (groupBy === 'center' || groupBy === 'department' || groupBy === 'group' || groupBy === 'pitcher') {
             if (!scope.orgScopeIds.includes(key)) return null;
-            return orgMetrics(filter, scope, ORG_LEVEL_OF[groupBy], key);
+            const raw = orgMetrics(filter, scope, ORG_LEVEL_OF[groupBy], key);
+            return wantsSelf(filter.businessTypes)
+                ? applyBusiness(raw, { level: 'org' }, scope.monthIdx.length || 1, filter.basis, filter, [], null)
+                : zeroMoney(raw);
         }
         return businessMetrics(filter, scope, groupBy as FlowDim, key, totalsOf(scope), poolOf(scope));
     },
@@ -1554,3 +1753,38 @@ export function projectMonths(filter: AnalysisFilter, opts: ProjectOptions): Pro
     }
     return out;
 }
+
+function checkBusinessInvariants(): void {
+    const filter = store.defaultFilter();
+    const company = store.metricsOf(filter, 'company', 'company');
+    if (!company) return;
+    const sum = BUSINESS_ORDER.reduce((acc, type) => acc + (store.metricsOf(filter, 'businessType', type)?.accrualRevenue ?? 0), 0);
+    if (Math.abs(sum - company.accrualRevenue) > 1) {
+        console.error('[口径] 三类确认收入之和与公司确认收入不一致', sum, company.accrualRevenue);
+    }
+    const subjects = company.revenueByType.liuliangzhu + company.revenueByType.adGold + company.revenueByType.iapShare;
+    if (Math.abs(subjects - company.accrualSelf) > 1) {
+        console.error('[口径] 自研三科目与自研确认收入不一致', subjects, company.accrualSelf);
+    }
+    for (const game of GAMES) {
+        const row = store.metricsOf(filter, 'game', `self_op|${game.id}`);
+        if (!row) continue;
+        if (row.projectProfit > 1) {
+            if (Math.abs(row.rdShare + row.issueShare - row.projectProfit) > 1) {
+                console.error('[口径] 自研盈利项目两侧归属不等于项目利润', game.name);
+            }
+        } else if (Math.abs(row.rdShare) > 1 || Math.abs(row.issueShare) > 1) {
+            console.error('[口径] 亏损或持平项目出现正向归属', game.name);
+        }
+    }
+    const sale = store.metricsOf(filter, 'game', 'sale|g1');
+    if (sale && !(sale.grossAmount > sale.accrualRevenue && sale.accrualRevenue + 1 >= sale.cashCollection)) {
+        console.error('[口径] 出售合同额应大于确认收入，确认收入应不低于回款', sale.grossAmount, sale.accrualRevenue, sale.cashCollection);
+    }
+    const loss = store.metricsOf(filter, 'game', 'sale|g12');
+    if (loss && (loss.projectProfit > 0 || loss.rdShare !== 0 || loss.issueShare !== 0)) {
+        console.error('[口径] 亏损出售不应产生正向归属', loss.projectProfit, loss.rdShare);
+    }
+}
+
+checkBusinessInvariants();

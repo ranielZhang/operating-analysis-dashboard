@@ -67,6 +67,17 @@
             >
                 <el-option v-for="g in games" :key="g.id" :label="g.name" :value="g.id" />
             </el-select>
+            <el-select
+                v-model="filter.businessTypes"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                size="small"
+                placeholder="全部业务"
+                class="filterbar__scope"
+            >
+                <el-option v-for="item in businessTypes" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
 
             <el-button v-if="hasFilter" size="small" text type="primary" @click="reset">清空范围</el-button>
         </div>
@@ -76,6 +87,8 @@
 <script setup lang="ts">
     import { computed, ref, watch } from 'vue';
     import { CENTERS, GAMES, PLATFORMS } from '@/domain/dimensions';
+    import { BUSINESS_TYPE_LABEL } from '@/domain/businessLayer';
+    import type { BusinessType } from '@/domain/types';
     import { GRANULARITY_OPTIONS, presetRanges, useAnalysisFilter } from '@/composables/useAnalysisFilter';
 
     /**
@@ -93,6 +106,11 @@
     const centers = CENTERS;
     const platforms = PLATFORMS;
     const games = GAMES;
+    const businessTypes: Array<{ value: BusinessType; label: string }> = [
+        { value: 'self_op', label: BUSINESS_TYPE_LABEL.self_op },
+        { value: 'sale', label: BUSINESS_TYPE_LABEL.sale },
+        { value: 'external', label: BUSINESS_TYPE_LABEL.external },
+    ];
     const presets = presetRanges();
     const presetKey = ref<string>('last12');
 

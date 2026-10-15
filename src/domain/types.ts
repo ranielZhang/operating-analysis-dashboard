@@ -12,12 +12,16 @@ export type ProfitBasis = 'book' | 'operating';
 export type OrgLevel = 'company' | 'center' | 'department' | 'group' | 'pitcher';
 
 /** 可下钻的维度 */
+/** 自研运营 / 游戏出售 / 外部发行投放。空筛选表示三类都看。 */
+export type BusinessType = 'self_op' | 'sale' | 'external';
+
 export type DimKey =
     | 'company'
     | 'center'
     | 'department'
     | 'group'
     | 'pitcher'
+    | 'businessType'
     | 'platform'
     | 'project'
     | 'game'
@@ -191,6 +195,37 @@ export interface Metrics {
     headcount: number;
     /** 人均经营利润 */
     perCapitaProfit: number;
+
+    /** 流水 / 合同额 / 客户预算。不计入营业收入。 */
+    grossAmount: number;
+    /** 回款 */
+    cashCollection: number;
+    /** 研发投入。自研取已归到该节点的人工；出售为合同上的研发投入。 */
+    rdInvest: number;
+    /** 其他直接成本。进入项目利润和成本饼图，不从经营利润里再扣。 */
+    otherDirectCost: number;
+    /** 确认收入 − 研发投入 − 发行投放 − 其他直接成本 */
+    projectProfit: number;
+    /** 研发侧内部归属。仅自研且项目利润为正时等于项目利润的一半。 */
+    rdShare: number;
+    /** 发行侧内部归属。与研发侧相同，两者相加等于盈利自研项目的项目利润。 */
+    issueShare: number;
+    /** 期间经营利润预算。只有公司和业务类型有数，其余为 0。 */
+    budgetProfit: number;
+    /** 经营利润 ÷ 预算。预算为 0 时为 0，页面显示「—」。 */
+    profitAttainment: number;
+    /** 可动用现金。只有公司节点有值。 */
+    availableCash: number | null;
+    /** 支撑月数。只有公司节点有值；净支出不为正时为 null。 */
+    runwayMonths: number | null;
+    /** 成熟期、衰退期游戏的期间经营利润 */
+    matureProfit: number;
+    /** 测试期、成长期游戏的研发投入 + 发行投放 */
+    newProjectNeed: number;
+    /** 三类确认收入，相加等于 accrualRevenue */
+    accrualSelf: number;
+    accrualSale: number;
+    accrualExternal: number;
 }
 
 /** 一行聚合结果：维度键 + 指标 */
@@ -230,6 +265,8 @@ export interface AnalysisFilter {
     platformIds: string[];
     projectIds: string[];
     gameIds: string[];
+    /** 业务类型。空数组 = 自研、出售、外部服务都看。 */
+    businessTypes: BusinessType[];
 }
 
 export interface QueryOptions {

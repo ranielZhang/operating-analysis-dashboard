@@ -77,7 +77,8 @@ export function useAnalysisFilter() {
                 filter.pitcherIds.length +
                 filter.platformIds.length +
                 filter.projectIds.length +
-                filter.gameIds.length >
+                filter.gameIds.length +
+                filter.businessTypes.length >
             0,
     );
 
@@ -100,6 +101,7 @@ export function useAnalysisFilter() {
             filter.platformIds.length,
             filter.projectIds.length,
             filter.gameIds.length,
+            filter.businessTypes.length,
         ],
         () => {
             drillState.path = [];
@@ -130,5 +132,6 @@ export const DIM_LABEL: Record<string, string> = {
     platform: '平台',
     project: '项目',
     game: '游戏',
+    businessType: '业务类型',
     month: '月份',
 };

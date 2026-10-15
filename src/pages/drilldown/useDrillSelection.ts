@@ -30,6 +30,7 @@ export const AXIS_LEVELS: Record<'org' | 'biz', Array<{ dim: DimKey; label: stri
     ],
     biz: [
         { dim: 'company', label: '公司' },
+        { dim: 'businessType', label: '业务类型' },
         { dim: 'platform', label: '平台' },
         { dim: 'project', label: '项目' },
         { dim: 'game', label: '游戏' },

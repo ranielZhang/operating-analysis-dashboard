@@ -29,6 +29,7 @@
             </div>
             <CurrentMonthForecast />
             <RollingForecast />
+            <CashCoverage />
             <CohortRecovery />
         </section>
     </div>
@@ -40,10 +41,12 @@
     import DrillDetailPanel from './components/DrillDetailPanel.vue';
     import CurrentMonthForecast from '@/pages/forecast/components/CurrentMonthForecast.vue';
     import RollingForecast from '@/pages/forecast/components/RollingForecast.vue';
+    import CashCoverage from '@/pages/forecast/components/CashCoverage.vue';
     import CohortRecovery from '@/pages/forecast/components/CohortRecovery.vue';
     import AnalysisFilterBar from '@/components/AnalysisFilterBar.vue';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import { CENTERS, DEPARTMENTS, GROUPS, PITCHERS, PLATFORMS, PROJECTS, GAMES } from '@/domain/dimensions';
+    import { BUSINESS_TYPE_LABEL } from '@/domain/businessLayer';
 
     /**
      * 经营数据看板（原「逐层下钻」）页面组装：只做布局，不取数。
@@ -75,6 +78,9 @@
         if (filter.platformIds.length) parts.push(`平台 ${nameText(filter.platformIds, PLATFORMS)}`);
         if (filter.projectIds.length) parts.push(`项目 ${nameText(filter.projectIds, PROJECTS)}`);
         if (filter.gameIds.length) parts.push(`游戏 ${nameText(filter.gameIds, GAMES)}`);
+        if (filter.businessTypes.length) {
+            parts.push(`业务 ${filter.businessTypes.map((id) => BUSINESS_TYPE_LABEL[id]).join('、')}`);
+        }
         return parts.join('；') || '部分范围';
     });
 
