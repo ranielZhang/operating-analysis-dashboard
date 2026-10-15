@@ -376,19 +376,27 @@
                 formatter: (p: { name: string; value: number; percent: number }) =>
                     `${p.name}<br/>${money(p.value)} · ${p.percent.toFixed(1)}%`,
             },
+            /*
+             * 圆心文案：left 用百分比锚到容器水平中点，再由 textAlign 居中。
+             * 先前写的是 left:'center' + textAlign:'center' —— ECharts 的 'center' 已经会整体居中，
+             * 再叠加 textAlign 会把文字又往左推半个文字宽，导致文字压在圆环左侧而非圆心。
+             * top:'middle' 让标题块在垂直方向也对齐圆心。
+             */
             title: {
                 text: money(total),
                 subtext: centerLabel,
-                left: 'center',
-                top: '40%',
+                left: '50%',
+                top: 'middle',
                 textAlign: 'center',
-                textStyle: { fontSize: 13, fontWeight: 700, color: '#1f2937' },
+                textVerticalAlign: 'middle',
+                itemGap: 2,
+                textStyle: { fontSize: 14, fontWeight: 700, color: '#1f2937' },
                 subtextStyle: { fontSize: 10, color: '#9ca3af' },
             },
             series: [
                 {
                     type: 'pie',
-                    radius: ['54%', '80%'],
+                    radius: ['56%', '82%'],
                     center: ['50%', '50%'],
                     avoidLabelOverlap: true,
                     label: { show: false },
@@ -576,6 +584,7 @@
     .detail__breakdown {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
         gap: var(--oa-gap-lg);
     }
 
@@ -650,34 +659,43 @@
         flex: 1 1 auto;
         display: flex;
         flex-direction: column;
-        gap: 5px;
+        gap: 1px;
         min-width: 0;
         margin: 0;
         padding: 0;
         list-style: none;
     }
 
+    /* 科目 / 金额 / 占比 三列对齐，行间加极淡斑马纹，便于横向读数（成本有 7 行） */
     .detail__legend-row {
         display: grid;
-        grid-template-columns: 7px minmax(40px, auto) minmax(58px, 1fr) 46px;
+        grid-template-columns: 8px minmax(44px, 1fr) minmax(70px, auto) 48px;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
+        padding: 4px 6px;
+        border-radius: 3px;
         font-size: var(--oa-fs-xs);
+        line-height: 1.5;
+
+        &:nth-child(odd) {
+            background: rgba(241, 245, 249, 0.7);
+        }
     }
 
     .detail__legend-dot {
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
         border-radius: 2px;
     }
 
     .detail__legend-name {
-        color: var(--oa-text-3);
+        color: var(--oa-text-2);
         white-space: nowrap;
     }
 
     .detail__legend-val {
         color: var(--oa-text-1);
+        font-weight: 600;
         text-align: right;
         white-space: nowrap;
     }
