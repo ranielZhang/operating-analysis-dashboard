@@ -11,7 +11,7 @@
             <span v-if="suffix" class="metric__suffix">{{ suffix }}</span>
         </div>
 
-        <div class="metric__foot">
+        <div v-if="hasFoot" class="metric__foot">
             <template v-if="compare !== undefined && compare !== null">
                 <span class="metric__compare-label">{{ compareLabel }}</span>
                 <span class="metric__compare oa-num" :class="compareClass">
@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-    import { computed } from 'vue';
+    import { computed, useSlots } from 'vue';
     import { changeText, money, percent, trendArrow, trendClass } from '@/utils/format';
 
     /** 核心指标卡：经营分析看板全站统一的 KPI 呈现单元 */
@@ -72,6 +72,12 @@
             colored: false,
             size: 'md',
         },
+    );
+
+    const slots = useSlots();
+    /** 没有环比、说明或底部插槽时不占那一行空白 */
+    const hasFoot = computed(
+        () => (props.compare !== undefined && props.compare !== null) || !!props.hint || !!slots.foot,
     );
 
     const display = computed(() => {

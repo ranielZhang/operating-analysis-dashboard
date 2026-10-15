@@ -1,40 +1,17 @@
 <template>
     <PanelCard title="节点详情" class="drill-detail">
         <template #actions>
-            <span class="detail__axis">{{ axisLabel }}</span>
+            <span class="detail__name">{{ drillSelection.name }}</span>
+            <el-tag v-if="orgNode?.isPitcher" size="small" effect="light" type="success">投手</el-tag>
+            <el-tag v-if="gameMeta?.keyGame" size="small" effect="light" type="warning">重点游戏</el-tag>
         </template>
 
         <div class="detail__scroll oa-scroll">
             <PanelEmptyState v-if="!m" text="当前筛选条件下该节点无数据（可能已被筛选条件排除）" />
 
             <template v-else>
-                <!-- 区块 1 · 节点头部 -->
-                <header class="detail__head">
-                    <div class="detail__title-row">
-                        <span class="detail__name">{{ drillSelection.name }}</span>
-                        <el-tag size="small" effect="light" type="info">{{ dimLabel }}</el-tag>
-                        <el-tag v-if="orgNode?.isPitcher" size="small" effect="light" type="success">投手</el-tag>
-                        <el-tag v-if="gameMeta?.keyGame" size="small" effect="light" type="warning">重点游戏</el-tag>
-                    </div>
-
-                    <div v-if="orgNode" class="detail__meta">
-                        <span class="detail__meta-item">
-                            <i class="detail__meta-k">岗位</i>{{ orgNode.isPitcher ? '投手' : ORG_LEVEL_TEXT[orgNode.level] }}
-                        </span>
-                        <span v-if="orgNode.owner && !orgNode.isPitcher" class="detail__meta-item">
-                            <i class="detail__meta-k">负责人</i>{{ orgNode.owner }}
-                        </span>
-                        <span v-if="orgNode.isPitcher" class="detail__meta-item">
-                            <i class="detail__meta-k">入职月份</i>{{ monthLabel(orgNode.joinMonth) }}
-                        </span>
-                        <span v-if="groupName" class="detail__meta-item">
-                            <i class="detail__meta-k">所属小组</i>{{ groupName }}
-                        </span>
-                        <span class="detail__meta-item">
-                            <i class="detail__meta-k">人头</i>{{ orgNode.headcount }} 人
-                        </span>
-                    </div>
-
+                <!-- 区块 1 · 节点补充信息（名称已放到标题栏右侧） -->
+                <header v-if="gameMeta || (!orgNode && !gameMeta)" class="detail__head">
                     <div v-if="gameMeta" class="detail__meta">
                         <span class="detail__meta-item">
                             <i class="detail__meta-k">变现类型</i>{{ monetizeLabel }}
@@ -75,7 +52,6 @@
                         tone="operating"
                         :colored="true"
                         size="sm"
-                        hint="权责发生制（含预估回报）"
                     />
                     <MetricCard
                         label="账面利润"
@@ -84,7 +60,6 @@
                         tone="book"
                         :colored="true"
                         size="sm"
-                        hint="银行流水口径"
                     />
                     <MetricCard
                         label="累计预估 ROI"
@@ -92,7 +67,6 @@
                         format="ratio"
                         tone="gap"
                         size="sm"
-                        :hint="`累计口径 · 实际 ROI ${ratio(m.actualRoi)}`"
                     />
                     <MetricCard
                         label="累计回收完成度"
@@ -100,7 +74,6 @@
                         format="percent"
                         tone="revenue"
                         size="sm"
-                        hint="累计已回收 / 累计预估总回收"
                     />
                 </div>
 
@@ -108,20 +81,15 @@
                 <section class="detail__block">
                     <div class="detail__block-head">
                         <span class="detail__block-title">月度走势</span>
-                        <span class="detail__block-sub">近 12 个月 · 收入为左轴、利润为右轴</span>
                     </div>
                     <EChart v-if="series.length" :option="chartOption" style="height: 200px" />
                     <PanelEmptyState v-else text="所选期间内没有可用的月度数据" />
-                    <p class="detail__note">仅展示与左侧树同口径的月度走势；节点未被单月筛选命中时该月按 0 计。</p>
                 </section>
 
                 <!-- 区块 4 · 结构明细 -->
                 <section class="detail__block">
                     <div class="detail__block-head">
                         <span class="detail__block-title">结构明细</span>
-                        <span class="detail__block-sub">
-                            收入合计 {{ money(revenueTotal) }} · 成本合计 {{ money(costTotal) }}
-                        </span>
                     </div>
                     <div class="detail__breakdown">
                         <div v-for="panel in breakdownPanels" :key="panel.key" class="detail__pie-card">
@@ -177,7 +145,7 @@
     import EChart from '@/components/EChart.vue';
     import { store } from '@/domain/store';
     import { GAME_MAP, ORG_MAP } from '@/domain/dimensions';
-    import { DIM_LABEL, useAnalysisFilter } from '@/composables/useAnalysisFilter';
+    import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import { money, monthLabel, percent, ratio, toWan, trendClass } from '@/utils/format';
     import { drillSelection } from '../useDrillSelection';
 
@@ -189,33 +157,8 @@
     /** 单节点指标；节点被筛选条件排除时为 null */
     const m = computed(() => store.metricsOf(filter, drillSelection.dim, drillSelection.key));
 
-    const dimLabel = computed(() => DIM_LABEL[drillSelection.dim] ?? drillSelection.dim);
-
-    const axisLabel = computed(() => {
-        const d = drillSelection.dim;
-        if (d === 'platform' || d === 'project' || d === 'game') return '业务轴';
-        if (d === 'month') return '时间轴';
-        return '组织轴';
-    });
-
     // ---------- 区块 1 · 节点头部元数据 ----------
-    /** 组织层级中文名（非投手节点展示"岗位"用） */
-    const ORG_LEVEL_TEXT: Record<string, string> = {
-        company: '公司',
-        center: '中心',
-        department: '部门',
-        group: '小组',
-        pitcher: '投手',
-    };
-
     const orgNode = computed(() => ORG_MAP.get(drillSelection.key) ?? null);
-
-    /** 投手所属小组名 = 父节点 name */
-    const groupName = computed(() => {
-        const n = orgNode.value;
-        if (!n || !n.isPitcher || !n.parentId) return '';
-        return ORG_MAP.get(n.parentId)?.name ?? '';
-    });
 
     const gameMeta = computed(() => GAME_MAP.get(drillSelection.key) ?? null);
 
@@ -366,46 +309,48 @@
 
     /**
      * 环形饼图 option。
-     * 图例**不交给 ECharts**，而是由卡片内的 HTML 列表渲染 —— 这样图例天然属于本卡片，
-     * 不会像之前那样飘在两张饼之间造成归属歧义；圆心用 title 显示合计。
+     * 图例由卡片内的 HTML 列表渲染。圆心文案挂在扇区 label 的 position:'center' 上，
+     * 锚点就是饼心；不用 title，避免标题盒和 textAlign 互相偏移。
      */
     function pieOption(rows: Array<BreakdownDef & { share: number }>, total: number, centerLabel: string): EChartsOption {
+        const slices = rows.filter((r) => r.value > 0);
+        const centerLabelStyle = {
+            show: true,
+            position: 'center' as const,
+            formatter: `{val|${money(total)}}\n{sub|${centerLabel}}`,
+            rich: {
+                val: {
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#1f2937',
+                    lineHeight: 18,
+                    align: 'center' as const,
+                },
+                sub: { fontSize: 10, color: '#9ca3af', lineHeight: 14, align: 'center' as const },
+            },
+        };
         return {
             tooltip: {
                 trigger: 'item',
                 formatter: (p: { name: string; value: number; percent: number }) =>
                     `${p.name}<br/>${money(p.value)} · ${p.percent.toFixed(1)}%`,
             },
-            /*
-             * 圆心文案：left 用百分比锚到容器水平中点，再由 textAlign 居中。
-             * 先前写的是 left:'center' + textAlign:'center' —— ECharts 的 'center' 已经会整体居中，
-             * 再叠加 textAlign 会把文字又往左推半个文字宽，导致文字压在圆环左侧而非圆心。
-             * top:'middle' 让标题块在垂直方向也对齐圆心。
-             */
-            title: {
-                text: money(total),
-                subtext: centerLabel,
-                left: '50%',
-                top: 'middle',
-                textAlign: 'center',
-                textVerticalAlign: 'middle',
-                itemGap: 2,
-                textStyle: { fontSize: 14, fontWeight: 700, color: '#1f2937' },
-                subtextStyle: { fontSize: 10, color: '#9ca3af' },
-            },
             series: [
                 {
                     type: 'pie',
                     radius: ['56%', '82%'],
                     center: ['50%', '50%'],
-                    avoidLabelOverlap: true,
+                    avoidLabelOverlap: false,
                     label: { show: false },
                     labelLine: { show: false },
                     itemStyle: { borderColor: '#fff', borderWidth: 2 },
-                    data: rows.filter((r) => r.value > 0).map((r) => ({
+                    data: slices.map((r, index) => ({
                         name: r.name,
                         value: r.value,
                         itemStyle: { color: r.color },
+                        label: index === 0 ? centerLabelStyle : { show: false },
+                        labelLine: { show: false },
+                        emphasis: index === 0 ? { label: centerLabelStyle } : { label: { show: false } },
                     })),
                 },
             ],
@@ -444,11 +389,6 @@
         min-height: 0;
     }
 
-    .detail__axis {
-        font-size: var(--oa-fs-xs);
-        color: var(--oa-text-4);
-    }
-
     .detail__scroll {
         height: 100%;
         min-height: 0;
@@ -467,17 +407,14 @@
         border-bottom: 1px dashed var(--oa-border-light);
     }
 
-    .detail__title-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
     .detail__name {
-        font-size: var(--oa-fs-lg);
+        max-width: 280px;
+        overflow: hidden;
+        font-size: var(--oa-fs-base);
         font-weight: 600;
         color: var(--oa-text-1);
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .detail__meta {
@@ -540,12 +477,6 @@
             border-radius: 2px;
             background: var(--oa-primary);
         }
-    }
-
-    .detail__block-sub {
-        font-size: var(--oa-fs-xs);
-        color: var(--oa-text-4);
-        text-align: right;
     }
 
     .detail__note {
