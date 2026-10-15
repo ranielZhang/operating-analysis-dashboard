@@ -4,7 +4,7 @@
             <div class="app__brand">
                 <span class="app__logo">经</span>
                 <div class="app__brand-text">
-                    <strong>经营分析看板</strong>
+                    <strong>公司经营分析看板</strong>
                     <small>经营利润 · 月度预估 · 逐层下钻</small>
                 </div>
             </div>
