@@ -46,3 +46,42 @@ body {
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
+
+// ============================================================
+// 栅格等高：消除「同排两列高度不等 → 短的那列下方留出大片空白」
+//
+// 1) 卡片在被拉伸的栅格单元格里拉满行高
+//    （父容器高度为 auto 时 height:100% 退化为 auto，单列 / 流式页面不受影响）
+// 2) 卡片主体只有 1~2 个子块时（典型结构：内容块 + 脚注），让第一个子块吸收多余高度。
+//    用 `:not(:nth-last-child(n + 3))` 判定「主体不超过两个子块」——
+//    像「节点详情」这种主体有 5 个子块的卡片必须排除，否则首块被撑开会把后面内容整体推下去
+// 3) 图表随之被拉伸填满（EChart 内部有 ResizeObserver 会自动重绘）；min-height 兜底
+// 4) 列表型主体（洞察列表等）条目在卡内均匀铺开，不把空白堆在底部
+// ============================================================
+.panel {
+    height: 100%;
+}
+
+.panel__body {
+    display: flex;
+    flex-direction: column;
+}
+
+.panel__body > :first-child:not(:nth-last-child(n + 3)) {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.panel__body .echart {
+    flex: 1 1 auto;
+    min-height: 160px;
+}
+
+/* 列表型主体：条目均分剩余高度（gap 会被撑开，视觉上是「留白均匀」而非「底部一块空」） */
+.panel__body .ins__list,
+.panel__body .ins,
+.panel__body > ul:first-child:not(:nth-last-child(n + 3)) {
+    flex: 1 1 auto;
+    min-height: 0;
+    justify-content: space-between;
+}

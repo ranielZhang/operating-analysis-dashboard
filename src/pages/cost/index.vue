@@ -156,7 +156,7 @@
     .cost__grid {
         display: grid;
         gap: var(--oa-gap);
-        align-items: start;
+        align-items: stretch;
         min-width: 0;
     }
 

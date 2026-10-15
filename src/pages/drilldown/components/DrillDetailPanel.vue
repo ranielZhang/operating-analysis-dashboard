@@ -584,11 +584,12 @@
     .detail__breakdown {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
         gap: var(--oa-gap-lg);
     }
 
     .detail__pie-card {
+        display: flex;
+        flex-direction: column;
         min-width: 0;
         padding: 8px 10px 10px;
         border: 1px solid var(--oa-border);
@@ -644,6 +645,8 @@
         align-items: center;
         gap: 10px;
         min-width: 0;
+        /* 两张卡片等高时，内容在卡片内垂直居中，不把空白堆在底部 */
+        flex: 1 1 auto;
     }
 
     .detail__pie-chart {

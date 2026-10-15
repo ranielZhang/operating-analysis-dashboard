@@ -243,7 +243,7 @@
         border-bottom: 1px dashed var(--oa-border-light);
 
         &--list {
-            align-items: start;
+            align-items: stretch;
         }
     }
 
