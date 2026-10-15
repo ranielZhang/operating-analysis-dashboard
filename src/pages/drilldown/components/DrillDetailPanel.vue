@@ -124,45 +124,30 @@
                         </span>
                     </div>
                     <div class="detail__breakdown">
-                        <div class="detail__list">
-                            <div class="detail__list-head">
-                                <span>收入构成</span>
-                                <span class="oa-num">{{ money(revenueTotal) }}</span>
-                            </div>
-                            <div v-for="row in revenueRows" :key="row.name" class="detail__row">
-                                <span class="detail__row-dot" :style="{ background: row.color }" />
-                                <span class="detail__row-name">{{ row.name }}</span>
-                                <span class="detail__row-val oa-num">{{ money(row.value) }}</span>
-                                <span class="detail__row-bar">
-                                    <el-progress
-                                        :percentage="row.percentage"
-                                        :show-text="false"
-                                        :stroke-width="4"
-                                        :color="row.color"
-                                    />
+                        <div v-for="panel in breakdownPanels" :key="panel.key" class="detail__pie-card">
+                            <div class="detail__pie-head">
+                                <span class="detail__pie-title" :class="`detail__pie-title--${panel.key}`">
+                                    {{ panel.title }}
                                 </span>
-                                <span class="detail__row-pct oa-num">{{ percent(row.share) }}</span>
+                                <span class="detail__pie-total oa-num">{{ money(panel.total) }}</span>
                             </div>
-                        </div>
-
-                        <div class="detail__list">
-                            <div class="detail__list-head">
-                                <span>成本构成</span>
-                                <span class="oa-num">{{ money(costTotal) }}</span>
-                            </div>
-                            <div v-for="row in costRows" :key="row.name" class="detail__row">
-                                <span class="detail__row-dot" :style="{ background: row.color }" />
-                                <span class="detail__row-name">{{ row.name }}</span>
-                                <span class="detail__row-val oa-num">{{ money(row.value) }}</span>
-                                <span class="detail__row-bar">
-                                    <el-progress
-                                        :percentage="row.percentage"
-                                        :show-text="false"
-                                        :stroke-width="4"
-                                        :color="row.color"
-                                    />
-                                </span>
-                                <span class="detail__row-pct oa-num">{{ percent(row.share) }}</span>
+                            <div class="detail__pie-body">
+                                <EChart
+                                    v-if="panel.total > 0"
+                                    :option="panel.option"
+                                    class="detail__pie-chart"
+                                    style="width: 148px; height: 148px"
+                                />
+                                <PanelEmptyState v-else text="本期无发生" class="detail__pie-empty" />
+                                <!-- 图例放在本卡片内部，不会与相邻卡片的图例混淆 -->
+                                <ul class="detail__legend">
+                                    <li v-for="row in panel.rows" :key="row.name" class="detail__legend-row">
+                                        <span class="detail__legend-dot" :style="{ background: row.color }" />
+                                        <span class="detail__legend-name">{{ row.name }}</span>
+                                        <span class="detail__legend-val oa-num">{{ money(row.value) }}</span>
+                                        <span class="detail__legend-pct oa-num">{{ percent(row.share) }}</span>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -344,9 +329,9 @@
     const revenueDefs = computed<BreakdownDef[]>(() => {
         const r = m.value?.revenueByType;
         return [
-            { name: '流量主', value: r?.liuliangzhu ?? 0, color: 'var(--oa-rev-liuliangzhu)' },
-            { name: '广告金', value: r?.adGold ?? 0, color: 'var(--oa-rev-adgold)' },
-            { name: '分成', value: r?.iapShare ?? 0, color: 'var(--oa-rev-share)' },
+            { name: '流量主', value: r?.liuliangzhu ?? 0, color: '#8b5cf6' },
+            { name: '广告金', value: r?.adGold ?? 0, color: '#f472b6' },
+            { name: '分成', value: r?.iapShare ?? 0, color: '#06b6d4' },
         ];
     });
 
@@ -354,16 +339,17 @@
      * 成本科目。**刻意不含「预付」**：预付代表本期现金流出（充值额），
      * 与「投放」是同一笔业务成本的两种口径，两者相加会超过总成本
      * （实测 79.7% + 93.3% > 100%）。预付单独在图注说明。
+     * 配色：投放红 → 人工四科目蓝（由深到浅）→ 管理两科目青（由深到浅）。
      */
     const costDefs = computed<BreakdownDef[]>(() => {
         const c = m.value?.costByType;
         return [
-            { name: '投放', value: c?.adSpend ?? 0, color: 'var(--oa-cost-ad)' },
-            { name: '工资', value: c?.salary ?? 0, color: 'var(--oa-cost-labor)' },
+            { name: '投放', value: c?.adSpend ?? 0, color: '#fd6464' },
+            { name: '工资', value: c?.salary ?? 0, color: '#4d94fa' },
             { name: '医社保', value: c?.socialInsurance ?? 0, color: '#7aaffb' },
             { name: '个税', value: c?.individualTax ?? 0, color: '#a5c9fd' },
             { name: '项目奖金', value: c?.projectBonus ?? 0, color: '#c9ddfe' },
-            { name: '福利费', value: c?.welfare ?? 0, color: 'var(--oa-cost-admin)' },
+            { name: '福利费', value: c?.welfare ?? 0, color: '#06b6d4' },
             { name: '办公费', value: c?.office ?? 0, color: '#5fd4e6' },
         ];
     });
@@ -371,19 +357,69 @@
     /** 本期充值额（现金口径），仅作说明，不计入构成 */
     const prepayAmount = computed(() => m.value?.costByType.prepay ?? 0);
 
-    function decorate(defs: BreakdownDef[], total: number) {
-        return defs.map((d) => {
-            const share = total > 0 ? d.value / total : 0;
-            return {
-                ...d,
-                share,
-                percentage: Math.min(100, Math.max(0, Math.round(share * 100))),
-            };
-        });
+    function withShare(defs: BreakdownDef[], total: number) {
+        return defs.map((d) => ({ ...d, share: total > 0 ? d.value / total : 0 }));
     }
 
-    const revenueRows = computed(() => decorate(revenueDefs.value, revenueTotal.value));
-    const costRows = computed(() => decorate(costDefs.value, costTotal.value));
+    const revenueRows = computed(() => withShare(revenueDefs.value, revenueTotal.value));
+    const costRows = computed(() => withShare(costDefs.value, costTotal.value));
+
+    /**
+     * 环形饼图 option。
+     * 图例**不交给 ECharts**，而是由卡片内的 HTML 列表渲染 —— 这样图例天然属于本卡片，
+     * 不会像之前那样飘在两张饼之间造成归属歧义；圆心用 title 显示合计。
+     */
+    function pieOption(rows: Array<BreakdownDef & { share: number }>, total: number, centerLabel: string): EChartsOption {
+        return {
+            tooltip: {
+                trigger: 'item',
+                formatter: (p: { name: string; value: number; percent: number }) =>
+                    `${p.name}<br/>${money(p.value)} · ${p.percent.toFixed(1)}%`,
+            },
+            title: {
+                text: money(total),
+                subtext: centerLabel,
+                left: 'center',
+                top: '40%',
+                textAlign: 'center',
+                textStyle: { fontSize: 13, fontWeight: 700, color: '#1f2937' },
+                subtextStyle: { fontSize: 10, color: '#9ca3af' },
+            },
+            series: [
+                {
+                    type: 'pie',
+                    radius: ['54%', '80%'],
+                    center: ['50%', '50%'],
+                    avoidLabelOverlap: true,
+                    label: { show: false },
+                    labelLine: { show: false },
+                    itemStyle: { borderColor: '#fff', borderWidth: 2 },
+                    data: rows.filter((r) => r.value > 0).map((r) => ({
+                        name: r.name,
+                        value: r.value,
+                        itemStyle: { color: r.color },
+                    })),
+                },
+            ],
+        } as EChartsOption;
+    }
+
+    const breakdownPanels = computed(() => [
+        {
+            key: 'revenue',
+            title: '收入构成',
+            total: revenueTotal.value,
+            rows: revenueRows.value,
+            option: pieOption(revenueRows.value, revenueTotal.value, '收入合计'),
+        },
+        {
+            key: 'cost',
+            title: '成本构成',
+            total: costTotal.value,
+            rows: costRows.value,
+            option: pieOption(costRows.value, costTotal.value, '成本合计'),
+        },
+    ]);
 
     // ---------- 区块 5 · 现金口径 ----------
     const showCash = computed(() => {
@@ -528,74 +564,128 @@
 
 
 
-    .detail__list {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        min-width: 0;
+
+
+
+
+
+
+
+
+    /* 结构明细：两张各自独立的饼图卡片，图例内嵌在本卡片内 */
+    .detail__breakdown {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--oa-gap-lg);
     }
 
-    .detail__list-head {
+    .detail__pie-card {
+        min-width: 0;
+        padding: 8px 10px 10px;
+        border: 1px solid var(--oa-border);
+        border-radius: var(--oa-radius-sm);
+        background: #fbfcfe;
+    }
+
+    .detail__pie-head {
         display: flex;
-        align-items: center;
+        align-items: baseline;
         justify-content: space-between;
-        gap: 6px;
-        padding-bottom: 3px;
-        font-size: var(--oa-fs-xs);
-        font-weight: 600;
-        color: var(--oa-text-2);
+        gap: 8px;
+        padding-bottom: 6px;
+        margin-bottom: 8px;
         border-bottom: 1px solid var(--oa-border-light);
     }
 
-    .detail__row {
+    .detail__pie-title {
+        position: relative;
+        padding-left: 9px;
+        font-size: var(--oa-fs-sm);
+        font-weight: 600;
+        color: var(--oa-text-1);
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 12px;
+            border-radius: 2px;
+        }
+    }
+
+    .detail__pie-title--revenue::before {
+        background: var(--oa-revenue);
+    }
+
+    .detail__pie-title--cost::before {
+        background: var(--oa-cost);
+    }
+
+    .detail__pie-total {
+        font-size: var(--oa-fs-sm);
+        font-weight: 600;
+        color: var(--oa-text-1);
+    }
+
+    .detail__pie-body {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .detail__pie-chart {
+        flex: 0 0 148px;
+    }
+
+    .detail__pie-empty {
+        flex: 0 0 148px;
+        min-height: 148px;
+    }
+
+    .detail__legend {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .detail__legend-row {
         display: grid;
-        grid-template-columns: 6px minmax(46px, auto) minmax(52px, auto) minmax(28px, 1fr) 44px;
+        grid-template-columns: 7px minmax(40px, auto) minmax(58px, 1fr) 46px;
         align-items: center;
         gap: 6px;
         font-size: var(--oa-fs-xs);
     }
 
-    .detail__row-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
+    .detail__legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
     }
 
-    .detail__row-name {
+    .detail__legend-name {
         color: var(--oa-text-3);
         white-space: nowrap;
     }
 
-    .detail__row-val {
+    .detail__legend-val {
         color: var(--oa-text-1);
         text-align: right;
         white-space: nowrap;
     }
 
-    .detail__row-bar {
-        display: block;
-        min-width: 0;
-
-        :deep(.el-progress) {
-            line-height: 1;
-        }
-
-        :deep(.el-progress-bar__outer) {
-            background: var(--oa-border-light);
-        }
-    }
-
-    .detail__row-pct {
-        color: var(--oa-text-4);
+    .detail__legend-pct {
+        color: var(--oa-text-3);
         text-align: right;
         white-space: nowrap;
-    }
-
-    /* 区块 5 */
-    .detail__breakdown {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--oa-gap);
     }
 
     @media (max-width: 1200px) {
@@ -604,70 +694,6 @@
         }
     }
 
-    .detail__list {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        min-width: 0;
-    }
-
-    .detail__list-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 6px;
-        padding-bottom: 3px;
-        font-size: var(--oa-fs-xs);
-        font-weight: 600;
-        color: var(--oa-text-2);
-        border-bottom: 1px solid var(--oa-border-light);
-    }
-
-    .detail__row {
-        display: grid;
-        grid-template-columns: 6px minmax(46px, auto) minmax(52px, auto) minmax(28px, 1fr) 44px;
-        align-items: center;
-        gap: 6px;
-        font-size: var(--oa-fs-xs);
-    }
-
-    .detail__row-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-    }
-
-    .detail__row-name {
-        color: var(--oa-text-3);
-        white-space: nowrap;
-    }
-
-    .detail__row-val {
-        color: var(--oa-text-1);
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    .detail__row-bar {
-        display: block;
-        min-width: 0;
-
-        :deep(.el-progress) {
-            line-height: 1;
-        }
-
-        :deep(.el-progress-bar__outer) {
-            background: var(--oa-border-light);
-        }
-    }
-
-    .detail__row-pct {
-        color: var(--oa-text-4);
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    /* 区块 5 */
     .detail__cash {
         margin: 0;
         padding: 7px 10px;
