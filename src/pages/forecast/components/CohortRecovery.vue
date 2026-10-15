@@ -1,8 +1,5 @@
 <template>
-    <PanelCard
-        title="Cohort 投放回收分析"
-        subtitle="每个月的投放当成一个 cohort，跟踪其投放后累计回收 ROI"
-    >
+    <PanelCard title="投放回收">
         <template #actions>
             <el-radio-group v-model="gameScope" size="small">
                 <el-radio-button value="all">全部游戏</el-radio-button>
@@ -22,134 +19,43 @@
                 <EChart :option="mainOption" style="height: 320px" />
             </section>
 
-            <!-- 2. 关键节点对比 -->
             <section class="blk">
-                <div class="blk__title">
-                    各 cohort 关键节点 ROI 对比
-                    <span class="blk__hint">绿 = 高于回本线 1.0，红 = 未回本</span>
-                </div>
-                <EChart :option="barOption" style="height: 240px" />
+                <el-table
+                    :data="rows"
+                    size="small"
+                    max-height="280"
+                    show-overflow-tooltip
+                    :default-sort="{ prop: 'cohortMonth', order: 'descending' }"
+                >
+                    <el-table-column prop="cohortMonth" label="投放月" min-width="92" sortable />
+                    <el-table-column label="投放消耗" align="right" min-width="96">
+                        <template #default="{ row }">
+                            <span class="oa-num">{{ money(row.spend) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="D90" align="right" min-width="72">
+                        <template #default="{ row }">
+                            <span class="oa-num" :class="trendClass(row.roi90 - 1)">{{ ratio(row.roi90) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="D180" align="right" min-width="72">
+                        <template #default="{ row }">
+                            <span class="oa-num" :class="trendClass(row.roi180 - 1)">{{ ratio(row.roi180) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="D360" align="right" min-width="72">
+                        <template #default="{ row }">
+                            <span class="oa-num" :class="trendClass(row.roi360 - 1)">{{ ratio(row.roi360) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="回本" align="right" min-width="88">
+                        <template #default="{ row }">
+                            <span v-if="row.paybackDay !== null" class="oa-num">{{ row.paybackDay }} 天</span>
+                            <span v-else>未回本</span>
+                        </template>
+                    </el-table-column>
+                </el-table>
             </section>
-
-            <!-- 3 + 4. 明细表 & 曲线参数对照 -->
-            <div class="split">
-                <section class="blk">
-                    <div class="blk__title">
-                        Cohort 回收明细
-                        <span class="blk__hint">回本天数按 D30 粒度线性插值估算</span>
-                    </div>
-                    <el-table
-                        :data="rows"
-                        size="small"
-                        max-height="300"
-                        show-overflow-tooltip
-                        :default-sort="{ prop: 'cohortMonth', order: 'descending' }"
-                    >
-                        <el-table-column prop="cohortMonth" label="投放月" min-width="92" fixed sortable />
-                        <el-table-column label="投放消耗" align="right" min-width="96">
-                            <template #header>
-                                <el-tooltip
-                                    content="该 cohort 整月投放消耗；当月（数据截止日所在月）为不完整月，消耗天然偏低"
-                                    placement="top"
-                                >
-                                    <span>投放消耗</span>
-                                </el-tooltip>
-                            </template>
-                            <template #default="{ row }">
-                                <span class="oa-num">{{ money(row.spend) }}</span>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="D90 ROI" align="right" min-width="84">
-                            <template #default="{ row }">
-                                <span class="oa-num" :class="trendClass(row.roi90 - 1)">{{ ratio(row.roi90) }}</span>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="D180 ROI" align="right" min-width="96">
-                            <template #default="{ row }">
-                                <span class="oa-num" :class="trendClass(row.roi180 - 1)">{{ ratio(row.roi180) }}</span>
-                                <el-tag v-if="row.p180" size="small" type="info" class="mini-tag">预估</el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="D360 ROI" align="right" min-width="96">
-                            <template #default="{ row }">
-                                <span class="oa-num" :class="trendClass(row.roi360 - 1)">{{ ratio(row.roi360) }}</span>
-                                <el-tag v-if="row.p360" size="small" type="info" class="mini-tag">预估</el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="预计回本天数" align="right" min-width="106">
-                            <template #default="{ row }">
-                                <template v-if="row.paybackDay !== null">
-                                    <span class="oa-num">{{ row.paybackDay }}</span>
-                                    <span class="unit">天</span>
-                                </template>
-                                <el-tooltip v-else content="D30~D360 区间内累计 ROI 始终低于 1.0，尚未回本" placement="top">
-                                    <el-tag size="small" type="danger">未回本</el-tag>
-                                </el-tooltip>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="回收完成度" align="right" min-width="100">
-                            <template #default="{ row }">
-                                <el-tooltip content="口径：D360 累计 ROI ÷ 1.4（引擎按 D1≈17%、D90≈112%、D360≈141% 校准的 360 日参考目标）" placement="top">
-                                    <span class="oa-num">{{ percent(row.completion) }}</span>
-                                </el-tooltip>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="状态" min-width="80" align="center">
-                            <template #default="{ row }">
-                                <el-tag size="small" :type="statusOf(row.roi180).tone">{{ statusOf(row.roi180).text }}</el-tag>
-                            </template>
-                        </el-table-column>
-                        <el-table-column label="状态依据" min-width="150" show-overflow-tooltip>
-                            <template #default="{ row }">
-                                <span class="blk__hint">D180 ROI {{ ratio(row.roi180) }}：≥1.15 健康 / 1.0~1.15 持平 / &lt;1.0 未回本</span>
-                            </template>
-                        </el-table-column>
-                    </el-table>
-                </section>
-
-                <section class="blk">
-                    <div class="blk__title">回收曲线参数对照（curveA / curveB）</div>
-                    <div class="dist">
-                        <div class="dist__item">
-                            <div class="dist__head">
-                                <span class="dist__name">回收最快曲线</span>
-                                <span class="dist__cap">最高 3 个游戏 · D360 ROI</span>
-                            </div>
-                            <ul class="dist__list">
-                                <li v-for="item in topCurves" :key="item.id">
-                                    <span class="dist__label">{{ item.name }}</span>
-                                    <span class="oa-num dist__val dist__val--up">{{ ratio(item.roi360) }}</span>
-                                    <span class="oa-num dist__param">a {{ item.curveA.toFixed(2) }} / b {{ item.curveB.toFixed(2) }}</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <div class="dist__item">
-                            <div class="dist__head">
-                                <span class="dist__name">回收最慢曲线</span>
-                                <span class="dist__cap">最低 3 个游戏 · D360 ROI</span>
-                            </div>
-                            <ul class="dist__list">
-                                <li v-for="item in bottomCurves" :key="item.id">
-                                    <span class="dist__label">{{ item.name }}</span>
-                                    <span class="oa-num dist__val dist__val--down">{{ ratio(item.roi360) }}</span>
-                                    <span class="oa-num dist__param">a {{ item.curveA.toFixed(2) }} / b {{ item.curveB.toFixed(2) }}</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    <p class="note">
-                        不同游戏的回收曲线不同（<span class="oa-num">roiAt(360, curveA, curveB)</span> 相差可达 2 倍），
-                        因此每个月的 cohort 曲线是「该月各游戏按投放消耗加权的合成曲线」，不是某一条单游戏曲线。
-                    </p>
-                </section>
-            </div>
-
-            <!-- 5. 一句话结论 -->
-            <section class="conclusion">
-                <span class="conclusion__tag">结论</span>
-                <span class="conclusion__text">{{ conclusion }}</span>
-            </section>
-            <p v-if="scopeNote" class="scope-note">{{ scopeNote }}</p>
         </div>
     </PanelCard>
 </template>

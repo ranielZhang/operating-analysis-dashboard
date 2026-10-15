@@ -128,7 +128,8 @@
         flex-wrap: wrap;
         padding: 8px 14px;
         background: var(--oa-card);
-        border-bottom: 1px solid var(--oa-border);
+        border: 1px solid var(--oa-border);
+        border-radius: var(--oa-radius);
         flex: 0 0 auto;
     }
 

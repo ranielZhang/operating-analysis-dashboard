@@ -1,8 +1,5 @@
 <template>
-    <PanelCard title="未来滚动预估" subtitle="中性 / 乐观 / 悲观三档情景">
-        <template #actions>
-            <el-tag size="small" type="info" effect="plain" disable-transitions>口径：{{ profitLabel }}</el-tag>
-        </template>
+    <PanelCard title="未来滚动预估" subtitle="中性 / 乐观 / 悲观">
 
         <div v-if="!hasData" class="rf__empty">
             <PanelEmptyState text="当前筛选条件下暂无滚动预估数据" />
@@ -10,199 +7,25 @@
 
         <div v-else class="rf">
             <!-- ① 主图：实际 + 预估拼接曲线 -->
-            <section class="rf__blk">
-                <header class="rf__blk-head">
-                    <h4 class="rf__blk-title">实际 + 预估拼接曲线</h4>
-                    <span class="rf__blk-hint">
-                        实线 + 圆点 = 已发生实际值｜虚线 = 预估值（自最后一个实际月开始连接，不断开）
-                    </span>
-                </header>
-                <EChart :option="mainOption" style="height: 320px" />
-                <p v-if="timelineGap" class="rf__warn">
-                    ⚠ 筛选区间内的已发生月份与预估月份之间存在时间断层（曲线跨越了未纳入的月份），仅作趋势参考。
-                </p>
-                <p v-if="futureCount === 0" class="rf__note">
-                    ⓘ 数据源的月份日历只到 {{ store.currentMonth }}，预估引擎未返回当月之后的月份，因此「未来滚动」区间暂为空，
-                    预估期仅含当月预估；待数据推进 / 引擎补齐未来月份后，本区会自动展开未来 N 个月。
-                </p>
-            </section>
+            <EChart :option="mainOption" style="height: 280px" />
 
-            <!-- ② 置信度衰减 -->
-            <section class="rf__blk">
-                <header class="rf__blk-head">
-                    <h4 class="rf__blk-title">预估置信度衰减</h4>
-                    <span class="rf__blk-hint">随预测期拉长，置信度按 6%/月 递减，最低 42%</span>
-                </header>
-                <EChart v-if="forecastPoints.length" :option="confidenceOption" style="height: 200px" />
-                <PanelEmptyState v-else text="当前筛选条件下没有预估月份" />
-            </section>
-
-            <!-- ③ 滚动预估明细 -->
-            <section class="rf__blk">
-                <header class="rf__blk-head">
-                    <h4 class="rf__blk-title">滚动预估明细</h4>
-                    <span class="rf__blk-hint">
-                        表尾按预估月份合计（{{ periodText }}）；实际月份灰色标注，三档情景 / 置信度只对预估月份有意义
-                    </span>
-                </header>
-
-                <el-table
-                    class="rf__table"
-                    :data="points"
-                    size="small"
-                    :max-height="420"
-                    show-summary
-                    :summary-method="summaryMethod"
-                    show-overflow-tooltip
-                >
-                    <el-table-column prop="month" label="月份" width="142" fixed>
-                        <template #default="{ row }">
-                            <div class="mcell">
-                                <span class="mcell__txt oa-num">{{ row.label }}</span>
-                                <el-tag v-if="!row.actual" size="small" type="warning" effect="plain" disable-transitions>
-                                    预估
-                                </el-tag>
-                                <span v-else class="mcell__actual">实际</span>
-                            </div>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="revenue" :label="revenueLabel" min-width="126" align="right">
-                        <template #default="{ row }">
-                            <span class="oa-num">{{ money(row.revenue) }}</span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="cost" label="总成本" min-width="118" align="right">
-                        <template #default="{ row }">
-                            <span class="oa-num">{{ money(row.cost) }}</span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="profit" :label="profitLabel" min-width="132" align="right">
-                        <template #default="{ row }">
-                            <span class="oa-num cell--strong" :class="trendClass(row.profit)">{{ money(row.profit) }}</span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="margin" label="利润率" min-width="104" align="right">
-                        <template #default="{ row }">
-                            <span
-                                class="oa-num"
-                                :class="trendClass(row.revenue > 0 ? row.profit / row.revenue : 0)"
-                            >
-                                {{ row.revenue > 0 ? percent(row.profit / row.revenue) : '—' }}
-                            </span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="pessimistic" label="悲观" min-width="118" align="right">
-                        <template #default="{ row }">
-                            <span v-if="row.actual" class="oa-num cell--actual" title="已发生月份无情景区间，此处等于实际值">
-                                {{ money(row.pessimistic) }}
-                            </span>
-                            <span v-else class="oa-num cell--pess" :title="flipHint(row)">
-                                {{ money(row.pessimistic) }}<span v-if="flipHint(row)" class="cell__flip">⚠</span>
-                            </span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="optimistic" label="乐观" min-width="118" align="right">
-                        <template #default="{ row }">
-                            <span v-if="row.actual" class="oa-num cell--actual" title="已发生月份无情景区间，此处等于实际值">
-                                {{ money(row.optimistic) }}
-                            </span>
-                            <span v-else class="oa-num cell--opt" :title="flipHint(row)">
-                                {{ money(row.optimistic) }}<span v-if="flipHint(row)" class="cell__flip">⚠</span>
-                            </span>
-                        </template>
-                    </el-table-column>
-
-                    <el-table-column prop="confidence" label="置信度" min-width="156">
-                        <template #default="{ row }">
-                            <div class="conf">
-                                <el-progress
-                                    class="conf__bar"
-                                    :percentage="Math.round(row.confidence * 100)"
-                                    :stroke-width="6"
-                                    :show-text="false"
-                                    :color="confidenceColor(row.confidence)"
-                                />
-                                <span class="oa-num conf__txt" :class="{ 'cell--actual': row.actual }">
-                                    {{ percent(row.confidence) }}
-                                </span>
-                            </div>
-                        </template>
-                    </el-table-column>
-                </el-table>
-            </section>
-
-            <!-- ④ 预估期合计结论 -->
-            <section class="rf__blk">
-                <header class="rf__blk-head">
-                    <h4 class="rf__blk-title">预估期合计结论</h4>
-                    <span class="rf__blk-hint">区间 = 悲观 ~ 乐观｜{{ periodText }}｜置信度按月份等权平均</span>
-                </header>
-
-                <div class="rf__kpis">
-                    <!-- 三档情景并排 -->
-                    <div class="scen">
-                        <div class="scen__label">预估期合计{{ profitLabel }}</div>
-                        <div class="scen__row">
-                            <div class="scen__cell scen__cell--pess">
-                                <span class="scen__k">悲观</span>
-                                <b class="scen__v oa-num">{{ money(totals.pessimistic) }}</b>
-                            </div>
-                            <div class="scen__cell scen__cell--mid">
-                                <span class="scen__k">中性</span>
-                                <b class="scen__v oa-num" :class="trendClass(totals.profit)">{{ money(totals.profit) }}</b>
-                            </div>
-                            <div class="scen__cell scen__cell--opt">
-                                <span class="scen__k">乐观</span>
-                                <b class="scen__v oa-num">{{ money(totals.optimistic) }}</b>
-                            </div>
-                        </div>
-                        <div class="scen__foot">区间 {{ money(bandLow) }} ~ {{ money(bandHigh) }}</div>
+            <div class="scen">
+                <div class="scen__label">预估期合计{{ profitLabel }} · {{ periodText }}</div>
+                <div class="scen__row">
+                    <div class="scen__cell scen__cell--pess">
+                        <span class="scen__k">悲观</span>
+                        <b class="scen__v oa-num">{{ money(totals.pessimistic) }}</b>
                     </div>
-
-                    <MetricCard
-                        :label="`预估期${revenueLabel}合计`"
-                        :value="totals.revenue"
-                        tone="revenue"
-                        :hint="periodText"
-                    />
-
-                    <MetricCard
-                        label="当前累计现金缺口（起点）"
-                        :value="cashGap"
-                        tone="warn"
-                        hint="预付余额 + 应收未收 · 时点值，不作未来余额外推"
-                    />
+                    <div class="scen__cell scen__cell--mid">
+                        <span class="scen__k">中性</span>
+                        <b class="scen__v oa-num" :class="trendClass(totals.profit)">{{ money(totals.profit) }}</b>
+                    </div>
+                    <div class="scen__cell scen__cell--opt">
+                        <span class="scen__k">乐观</span>
+                        <b class="scen__v oa-num">{{ money(totals.optimistic) }}</b>
+                    </div>
                 </div>
-
-                <p v-if="scenarioInverted" class="rf__warn">
-                    ⚠ 预估期合计区间上下界倒挂：预估月利润为负时，引擎给出的乐观 / 悲观两端方向相反，
-                    三档值按字段原样展示，区间请按数值大小解读（{{ money(bandLow) }} ~ {{ money(bandHigh) }}）。
-                </p>
-
-                <p class="rf__conclusion">
-                    <span class="rf__conclusion-badge">结论</span>
-                    <span class="rf__conclusion-text">
-                        预估期（{{ periodText }}）中性预估合计{{ profitLabel }}
-                        <b class="oa-num">{{ money(totals.profit) }}</b>
-                        （区间 {{ money(bandLow) }} ~ {{ money(bandHigh) }}）<template v-if="compare">，较最近
-                        {{ compare.months }} 个月实际 <b class="oa-num">{{ money(compare.actual) }}</b>
-                        <template v-if="compare.delta !== null">
-                            <b class="oa-num" :class="trendClass(compare.delta)">
-                                {{ trendArrow(compare.delta) }}{{ changeText(compare.delta) }}
-                            </b>
-                        </template>
-                        <template v-else>（基期利润为 0，无法计算变化率）</template>。</template><template v-else
-                            >；当前筛选区间内没有已发生的实际月份，暂无对比基期。</template
-                        >
-                    </span>
-                </p>
-            </section>
+            </div>
         </div>
     </PanelCard>
 </template>

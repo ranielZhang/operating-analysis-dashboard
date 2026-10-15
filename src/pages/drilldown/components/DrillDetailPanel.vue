@@ -78,12 +78,12 @@
                 </div>
 
                 <!-- 区块 3 · 月度趋势 -->
-                <section class="detail__block">
+                <section class="detail__block detail__block--trend">
                     <div class="detail__block-head">
-                        <span class="detail__block-title">月度走势</span>
+                        <span class="detail__block-title">{{ trendTitle }}</span>
                     </div>
-                    <EChart v-if="series.length" :option="chartOption" style="height: 200px" />
-                    <PanelEmptyState v-else text="所选期间内没有可用的月度数据" />
+                    <EChart v-if="series.length" :option="chartOption" class="detail__trend" />
+                    <PanelEmptyState v-else text="所选期间内没有可用数据" class="detail__trend" />
                 </section>
 
                 <!-- 区块 4 · 结构明细 -->
@@ -120,17 +120,6 @@
                         </div>
                     </div>
                 </section>
-
-                <!-- 区块 5 · 现金口径 -->
-                <p v-if="prepayAmount > 0" class="detail__note">
-                    预付（本期充值）<b class="oa-num">{{ money(prepayAmount) }}</b>
-                    属银行流水口径，与投放消耗不可叠加，故不计入成本构成。
-                </p>
-                <p v-if="showCash" class="detail__cash">
-                    预付余额 <b class="oa-num">{{ money(m.prepayBalance) }}</b> · 应收未收
-                    <b class="oa-num">{{ money(m.receivable) }}</b> → 现金缺口
-                    <b class="oa-num" :class="trendClass(m.cashGap)">{{ money(m.cashGap) }}</b>
-                </p>
             </template>
         </div>
     </PanelCard>
@@ -144,12 +133,13 @@
     import MetricCard from '@/components/MetricCard.vue';
     import EChart from '@/components/EChart.vue';
     import { store } from '@/domain/store';
+    import type { Granularity } from '@/domain/types';
     import { GAME_MAP, ORG_MAP } from '@/domain/dimensions';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
-    import { money, monthLabel, percent, ratio, toWan, trendClass } from '@/utils/format';
+    import { money, monthLabel, percent, ratio, toWan } from '@/utils/format';
     import { drillSelection } from '../useDrillSelection';
 
-    /** 经营数据看板 · 节点详情侧栏：节点头部 / 核心小卡 / 月度走势 / 现金口径 */
+    /** 经营数据看板 · 节点详情侧栏：节点头部 / 核心小卡 / 走势 / 结构明细 */
     defineOptions({ name: 'DrillDetailPanel' });
 
     const { filter } = useAnalysisFilter();
@@ -169,15 +159,49 @@
     };
     const monetizeLabel = computed(() => (gameMeta.value ? MONETIZE_LABEL[gameMeta.value.monetize] : ''));
 
-    // ---------- 区块 3 · 该节点的月度序列（逐月按节点取数） ----------
+    // ---------- 区块 3 · 走势：跟随顶部「按年 / 按季度 / 按月」 ----------
+    const TREND_TITLE: Record<Granularity, string> = {
+        year: '年度走势',
+        quarter: '季度走势',
+        month: '月度走势',
+    };
+    const trendTitle = computed(() => TREND_TITLE[filter.granularity]);
+
+    /** 把 YYYY-MM 收成当前粒度的桶。跨年的按月标签带上年份，避免 1 月重复。 */
+    function bucketOf(month: string, g: Granularity, crossYear: boolean): { key: string; label: string } {
+        const [y, mm] = month.split('-');
+        const m = Number(mm);
+        if (g === 'year') return { key: y, label: `${y}年` };
+        if (g === 'quarter') {
+            const q = Math.floor((m - 1) / 3) + 1;
+            return { key: `${y}Q${q}`, label: `${y}Q${q}` };
+        }
+        return { key: month, label: crossYear ? `${y.slice(2)}年${m}月` : `${m}月` };
+    }
+
     const series = computed(() => {
-        const months = store.months.slice(-12).filter((mo) => mo >= filter.startMonth && mo <= filter.endMonth);
-        return months.map((mo) => {
-            const f = { ...filter, startMonth: mo, endMonth: mo };
-            const mm = store.metricsOf(f, drillSelection.dim, drillSelection.key);
+        const g = filter.granularity;
+        const months = store.months.filter((mo) => mo >= filter.startMonth && mo <= filter.endMonth);
+        const crossYear = (months[0]?.slice(0, 4) ?? '') !== (months[months.length - 1]?.slice(0, 4) ?? '');
+        const groups: Array<{ key: string; label: string; start: string; end: string }> = [];
+        for (const mo of months) {
+            const bucket = bucketOf(mo, g, crossYear);
+            const last = groups[groups.length - 1];
+            if (!last || last.key !== bucket.key) {
+                groups.push({ key: bucket.key, label: bucket.label, start: mo, end: mo });
+            } else {
+                last.end = mo;
+            }
+        }
+        return groups.map((grp) => {
+            const mm = store.metricsOf(
+                { ...filter, startMonth: grp.start, endMonth: grp.end },
+                drillSelection.dim,
+                drillSelection.key,
+            );
             return {
-                label: `${Number(mo.slice(5))}月`,
-                month: mo,
+                label: grp.label,
+                month: grp.key,
                 income: mm?.accrualRevenue ?? 0,
                 profit: mm?.operatingProfit ?? 0,
             };
@@ -210,17 +234,17 @@
             {
                 type: 'value',
                 name: '收入',
-                nameTextStyle: { color: '#94a3b8', fontSize: 10 },
+                nameTextStyle: { color: '#94a3b8', fontSize: 11, align: 'right', padding: [0, 8, 0, 0] },
                 splitNumber: 4,
-                axisLabel: { color: '#94a3b8', fontSize: 11, formatter: (v: number) => `${v.toFixed(0)}万` },
+                axisLabel: { color: '#94a3b8', fontSize: 11, margin: 8, formatter: (v: number) => `${v.toFixed(0)}万` },
                 splitLine: { lineStyle: { color: '#f1f5f9' } },
             },
             {
                 type: 'value',
                 name: '利润',
-                nameTextStyle: { color: '#94a3b8', fontSize: 10 },
+                nameTextStyle: { color: '#94a3b8', fontSize: 11, align: 'left', padding: [0, 0, 0, 8] },
                 splitNumber: 4,
-                axisLabel: { color: '#94a3b8', fontSize: 11, formatter: (v: number) => `${v.toFixed(0)}万` },
+                axisLabel: { color: '#94a3b8', fontSize: 11, margin: 8, formatter: (v: number) => `${v.toFixed(0)}万` },
                 splitLine: { show: false },
             },
         ],
@@ -281,7 +305,7 @@
     /**
      * 成本科目。**刻意不含「预付」**：预付代表本期现金流出（充值额），
      * 与「投放」是同一笔业务成本的两种口径，两者相加会超过总成本
-     * （实测 79.7% + 93.3% > 100%）。预付单独在图注说明。
+     * （实测 79.7% + 93.3% > 100%）。
      * 配色：投放红 → 人工四科目蓝（由深到浅）→ 管理两科目青（由深到浅）。
      */
     const costDefs = computed<BreakdownDef[]>(() => {
@@ -296,9 +320,6 @@
             { name: '办公费', value: c?.office ?? 0, color: '#5fd4e6' },
         ];
     });
-
-    /** 本期充值额（现金口径），仅作说明，不计入构成 */
-    const prepayAmount = computed(() => m.value?.costByType.prepay ?? 0);
 
     function withShare(defs: BreakdownDef[], total: number) {
         return defs.map((d) => ({ ...d, share: total > 0 ? d.value / total : 0 }));
@@ -373,29 +394,28 @@
             option: pieOption(costRows.value, costTotal.value, '成本合计'),
         },
     ]);
-
-    // ---------- 区块 5 · 现金口径 ----------
-    const showCash = computed(() => {
-        if (drillSelection.dim === 'company') return true;
-        const metrics = m.value;
-        if (!metrics) return false;
-        return metrics.prepayBalance !== 0 || metrics.receivable !== 0;
-    });
 </script>
 
 <style scoped lang="scss">
     .drill-detail {
         height: 100%;
         min-height: 0;
+
+        /* 标题栏与右侧合计行是同一类条组件：外高 34px、上下内边距 5px */
+        :deep(.panel__head) {
+            height: 34px;
+            padding: 5px 14px;
+            box-sizing: border-box;
+        }
     }
 
     .detail__scroll {
         height: 100%;
         min-height: 0;
-        overflow: auto;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
-        gap: var(--oa-gap);
+        gap: 8px;
     }
 
     /* 区块 1 */
@@ -451,6 +471,18 @@
         gap: 6px;
     }
 
+    /* 月度走势吃掉剩余高度，整栏刚好铺满 */
+    .detail__block--trend {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .detail__trend {
+        flex: 1 1 0;
+        min-height: 0;
+        height: auto !important;
+    }
+
     .detail__block-head {
         display: flex;
         align-items: baseline;
@@ -477,13 +509,6 @@
             border-radius: 2px;
             background: var(--oa-primary);
         }
-    }
-
-    .detail__note {
-        margin: 0;
-        font-size: 11px;
-        line-height: 1.5;
-        color: var(--oa-text-4);
     }
 
     /* 区块 4 */
@@ -606,7 +631,7 @@
         grid-template-columns: 8px minmax(44px, 1fr) minmax(70px, auto) 48px;
         align-items: center;
         gap: 8px;
-        padding: 4px 6px;
+        padding: 3px 6px;
         border-radius: 3px;
         font-size: var(--oa-fs-xs);
         line-height: 1.5;
@@ -644,15 +669,5 @@
         .detail__breakdown {
             grid-template-columns: minmax(0, 1fr);
         }
-    }
-
-    .detail__cash {
-        margin: 0;
-        padding: 7px 10px;
-        font-size: var(--oa-fs-xs);
-        color: var(--oa-text-2);
-        background: var(--oa-hover);
-        border-left: 3px solid var(--oa-gap-color);
-        border-radius: var(--oa-radius-sm);
     }
 </style>
