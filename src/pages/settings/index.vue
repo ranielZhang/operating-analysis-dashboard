@@ -1,5 +1,5 @@
 <template>
-    <div class="st">
+    <div class="st" :class="{ 'st--embedded': embedded }">
         <!-- ===== 页面标题区 ===== -->
         <header class="st__head">
             <div class="st__head-main">
@@ -21,6 +21,7 @@
                 </p>
             </div>
             <div class="st__head-actions">
+                <el-button v-if="embedded" size="small" type="primary" plain @click="emit('back')">返回看板</el-button>
                 <el-tag size="small" effect="plain" type="info">回收曲线：ROI(n) = curveA · ln(n) + curveB</el-tag>
                 <el-tag size="small" effect="plain" type="success">窗口即时生效</el-tag>
             </div>
@@ -64,6 +65,10 @@
      */
     defineOptions({ name: 'SettingsPage' });
 
+    /** 嵌在经营数据看板里时去掉外层留白，并提供返回看板 */
+    defineProps<{ embedded?: boolean }>();
+    const emit = defineEmits<{ back: [] }>();
+
     const { filter, periodLabel, hasFilter } = useAnalysisFilter();
 </script>
 
@@ -74,6 +79,16 @@
         gap: var(--oa-gap);
         padding: var(--oa-gap);
         min-height: 0;
+    }
+
+    .st--embedded {
+        padding: 0;
+
+        .st__head {
+            position: sticky;
+            top: 0;
+            z-index: 4;
+        }
     }
 
     /* ---------- 标题区 ---------- */

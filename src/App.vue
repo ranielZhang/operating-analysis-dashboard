@@ -3,10 +3,7 @@
         <header class="app__top">
             <div class="app__brand">
                 <span class="app__logo">经</span>
-                <div class="app__brand-text">
-                    <strong>公司经营分析看板</strong>
-                    <small>经营利润 · 月度预估 · 逐层下钻</small>
-                </div>
+                <strong>公司经营分析看板</strong>
             </div>
             <div class="app__meta">
                 <span class="app__asof">
@@ -17,26 +14,7 @@
         </header>
 
         <div class="app__main">
-            <aside class="app__sider oa-scroll">
-                <nav>
-                    <template v-for="grp in MENU" :key="grp.title">
-                        <p class="app__menu-title">{{ grp.title }}</p>
-                        <router-link
-                            v-for="item in grp.items"
-                            :key="item.path"
-                            :to="item.path"
-                            class="app__menu-item"
-                            :class="{ 'is-active': route.path === item.path }"
-                        >
-                            <span class="app__menu-dot" />
-                            <span class="app__menu-label">{{ item.title }}</span>
-                        </router-link>
-                    </template>
-                </nav>
-            </aside>
-
             <main class="app__content">
-                <AnalysisFilterBar />
                 <div class="app__page oa-scroll">
                     <router-view v-slot="{ Component }">
                         <component :is="Component" />
@@ -48,46 +26,10 @@
 </template>
 
 <script setup lang="ts">
-    import { useRoute } from 'vue-router';
-    import AnalysisFilterBar from '@/components/AnalysisFilterBar.vue';
     import { store } from '@/domain/store';
 
-    /** 应用外壳：顶栏（口径说明） + 左侧菜单 + 右侧内容（含全局筛选栏） */
+    /** 应用外壳：顶栏 + 经营数据看板。算法说明不在网页展示。 */
     defineOptions({ name: 'AppShell' });
-
-    const route = useRoute();
-
-    /**
-     * 菜单按「经营叙事」排序，自上而下回答四个递进的问题：
-     *   结果（现在怎么样） → 分析（下钻到哪一层、哪个人） → 构成（钱从哪来、花到哪去） → 模型（怎么算出来的）
-     *
-     * 注意：「月度经营预估」不再单列页面 —— 它的三个模块（当月实时预估 / 滚动预估 / Cohort 回收）
-     * 已作为「模拟预估」板块挂在「逐层下钻」数据看板内，页面壳归档在 archive/forecast-page/。
-     */
-    const MENU = [
-        {
-            title: '经营结果',
-            items: [{ path: '/overview', title: '经营总览' }],
-        },
-        {
-            title: '经营分析',
-            items: [
-                { path: '/drilldown', title: '经营数据看板' },
-                { path: '/pitcher', title: '投手人效' },
-            ],
-        },
-        {
-            title: '收入与成本',
-            items: [
-                { path: '/revenue', title: '收入分析' },
-                { path: '/cost', title: '成本分析' },
-            ],
-        },
-        {
-            title: '模型与口径',
-            items: [{ path: '/settings', title: '预估参数配置' }],
-        },
-    ];
 </script>
 
 <style scoped lang="scss">
@@ -114,6 +56,11 @@
         display: flex;
         align-items: center;
         gap: 10px;
+
+        strong {
+            font-size: 15px;
+            letter-spacing: 0.5px;
+        }
     }
 
     .app__logo {
@@ -125,22 +72,6 @@
         background: rgba(255, 255, 255, 0.18);
         font-size: 15px;
         font-weight: 700;
-    }
-
-    .app__brand-text {
-        display: flex;
-        flex-direction: column;
-        line-height: 1.25;
-
-        strong {
-            font-size: 15px;
-            letter-spacing: 0.5px;
-        }
-
-        small {
-            font-size: 11px;
-            opacity: 0.75;
-        }
     }
 
     .app__meta {
@@ -161,61 +92,6 @@
         flex: 1 1 auto;
         min-height: 0;
     }
-
-    .app__sider {
-        width: var(--oa-sider-w);
-        flex: 0 0 var(--oa-sider-w);
-        background: #fff;
-        border-right: 1px solid var(--oa-border);
-        padding: 10px 8px 20px;
-    }
-
-    .app__menu-title {
-        margin: 12px 8px 6px;
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--oa-text-4);
-        letter-spacing: 1px;
-    }
-
-    .app__menu-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
-        margin-bottom: 2px;
-        border-radius: 6px;
-        text-decoration: none;
-        color: var(--oa-text-2);
-        transition: background 0.15s ease;
-
-        &:hover {
-            background: var(--oa-hover);
-        }
-
-        &.is-active {
-            background: var(--oa-primary-soft);
-            color: var(--oa-primary-deep);
-
-            .app__menu-dot {
-                background: var(--oa-primary);
-            }
-        }
-    }
-
-    .app__menu-dot {
-        flex: 0 0 auto;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #d5dbe7;
-    }
-
-    .app__menu-label {
-        font-size: var(--oa-fs-sm);
-        font-weight: 600;
-    }
-
 
     .app__content {
         display: flex;

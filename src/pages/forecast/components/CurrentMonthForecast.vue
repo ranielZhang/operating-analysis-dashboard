@@ -1,5 +1,5 @@
 <template>
-    <PanelCard title="当月实时预估" :subtitle="subtitle">
+    <PanelCard title="当月实时预估">
         <PanelEmptyState v-if="!current" text="当前筛选条件下没有当月预估数据（请确认分析期间包含当月）" />
 
         <div v-else class="cmf">
@@ -40,18 +40,6 @@
                         经营利润完成度 <b class="oa-num" :class="completionTone">{{ percent(profitCompletion) }}</b>
                     </span>
                 </div>
-
-                <p v-if="!realized" class="insight insight--warn">当月已实现指标不可用，下方仅展示全月预估结论。</p>
-                <p v-else class="insight" :class="{ 'insight--warn': completionState === 'loss' }">
-                    时间已过 {{ percent(timeProgress) }}，当前已实现经营利润 {{ money(realizedProfit) }}（占全月预估
-                    {{ percent(profitCompletion) }}）。<template v-if="completionState === 'ahead'"
-                        >完成度已高于时间进度，本月利润兑现节奏好于外推假设。</template
-                    ><template v-else-if="completionState === 'loss'"
-                        >当月经营利润尚未转正：投放消耗与收入同步按已过 {{ store.daysElapsed }} 天累计，而人工 / 管理费用按整月口径计入当月成本池，月中必然呈现「成本先满、收入后至」；叠加买量业务收入按回收曲线确认（前期回收快、后期趋缓），完成度低于时间进度属正常形态，判断本月经营好坏请看下方全月预估而非月中累计。</template
-                    ><template v-else
-                        >买量业务收入按回收曲线确认，前期回收快、后期趋缓，因此月中完成度通常低于时间进度，属正常形态。</template
-                    >
-                </p>
             </section>
 
             <!-- ============ 区块 2 · 当月预估结论卡 ============ -->
@@ -63,7 +51,6 @@
                     tone="operating"
                     :colored="true"
                     :hint="profitRangeHint"
-                    badge="中性预估"
                 />
                 <MetricCard
                     label="当月预估收入"
@@ -71,123 +58,13 @@
                     format="moneyAuto"
                     tone="revenue"
                     :hint="revenueHint"
-                    badge="应计口径"
                 />
                 <MetricCard
                     label="预估置信度"
                     :value="current.confidence"
                     format="percent"
-                    :hint="confidenceHint"
-                    badge="实时"
-                    badge-tone="success"
                 />
             </section>
-
-            <!-- ============ 区块 3 · 与上月对比 ============ -->
-            <section class="block">
-                <div class="block__head">
-                    <span class="block__title">与上月实际对比</span>
-                    <span class="block__note">
-                        {{ lastActual ? `${monthLabel(lastActual.month)} 实际` : '无可比月份' }} · 箭头示变化方向，颜色示利好 / 风险
-                    </span>
-                </div>
-
-                <template v-if="lastActual">
-                    <div class="chips">
-                        <div v-for="item in compareItems" :key="item.label" class="chip">
-                            <span class="chip__label">{{ item.label }}</span>
-                            <span class="chip__value oa-num">{{ money(item.cur) }}</span>
-                            <span class="chip__change oa-num" :class="chipClass(item.change, item.invert)">
-                                {{ item.change === null ? '—' : `${trendArrow(item.change)} ${changeText(item.change)}` }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <p class="conclusion">
-                        较上月（{{ money(lastActual.profit) }}）预计<b>{{ profitDirection }}</b>
-                        <b class="oa-num" :class="profitChangeTone">{{ rateWord(profitChange) }}</b
-                        >，主要来自<b>{{ driverSide }}</b
-                        >变化（{{ revenueDriverText }}；{{ costDriverText }}）。
-                    </p>
-                </template>
-                <p v-else class="insight">当前分析期间只包含当月，筛选区间放宽到上月即可看到环比对比。</p>
-            </section>
-
-            <!-- ============ 区块 4 · 推导过程（可折叠） ============ -->
-            <el-collapse v-model="activePanels" class="derive">
-                <el-collapse-item name="derive">
-                    <template #title>
-                        <span class="derive__title">当月预估推导过程</span>
-                        <span class="derive__sub">
-                            4 步 · 已实现 {{ money(realizedProfit) }} → 全月预估 {{ money(current.profit) }}
-                        </span>
-                    </template>
-
-                    <template v-if="realized">
-                        <ol class="steps">
-                            <li>
-                                已过 {{ store.daysElapsed }} 天实际：应确认收入 <b class="oa-num">{{ money(realizedRevenue) }}</b>、投放消耗
-                                <b class="oa-num">{{ money(realizedSpend) }}</b
-                                >；人工 + 管理费用 <b class="oa-num">{{ money(realizedLaborAdmin) }}</b> 按<b>整月口径</b>计入当月成本池（不按天数摊），
-                                故当月已实现经营利润 <b class="oa-num">{{ money(realizedProfit) }}</b> 天然偏低。
-                            </li>
-                            <li>
-                                剩余 {{ daysRemaining }} 天按「近 7 日消耗均值 × 季节系数」外推：新增投放消耗
-                                <b class="oa-num">{{ money(stepSpend.extra) }}</b>，本月消耗外推倍数约
-                                <template v-if="costFactor !== null">
-                                    <b class="oa-num">{{ ratio(costFactor) }}×</b>（= 全月预估成本 ÷ 已实现成本基准，该基准含当月人工与
-                                    管理费用）。
-                                </template>
-                                <template v-else>
-                                    <b class="oa-num">不可外推</b>（当月已实现成本基准为 0，无基数可放大）。
-                                </template>
-                            </li>
-                            <li>
-                                当月预估收入 = 已实现收入 <b class="oa-num">{{ money(realizedRevenue) }}</b> + 剩余天数回收增量
-                                <b class="oa-num">{{ money(stepRevenue.extra) }}</b>（按累计回收曲线
-                                <b>ROI(n) = a·ln(n) + b</b> 从第 {{ store.daysElapsed }} 天推算到第 {{ store.daysInMonth }} 天，收入外推倍数约
-                                <template v-if="revenueFactor !== null">
-                                    <b class="oa-num">{{ ratio(revenueFactor) }}×</b>）。
-                                </template>
-                                <template v-else>
-                                    <b class="oa-num">不可外推</b>（当月已实现应计收入为 0，无基数可放大）。
-                                </template>
-                            </li>
-                            <li>
-                                当月预估经营利润 = 预估收入 <b class="oa-num">{{ money(current.revenue) }}</b> − 预估总成本
-                                <b class="oa-num">{{ money(current.cost) }}</b> = <b class="oa-num">{{ money(current.profit) }}</b
-                                >；乐观 / 悲观区间由引擎按剩余天数的不确定度给出。
-                            </li>
-                        </ol>
-
-                        <el-table :data="deriveRows" size="small" class="derive__table">
-                            <el-table-column prop="name" label="项目" min-width="150" show-overflow-tooltip />
-                            <el-table-column :label="`已实现（${store.daysElapsed} 天）`" align="right" min-width="130">
-                                <template #default="{ row }">
-                                    <span class="oa-num">{{ money(row.realized) }}</span>
-                                </template>
-                            </el-table-column>
-                            <el-table-column :label="`预估补足（${daysRemaining} 天）`" align="right" min-width="130">
-                                <template #default="{ row }">
-                                    <span class="oa-num">{{ money(row.extra) }}</span>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="全月预估" align="right" min-width="130">
-                                <template #default="{ row }">
-                                    <span class="oa-num" :class="row.profitLike ? trendClass(row.full) : ''">{{ money(row.full) }}</span>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-
-                        <p class="derive__foot">
-                            口径说明：预估月份（当月 + 未来月）固定按<b>经营口径</b>推导 —— 应计确认收入 − 投放消耗 − 人工 / 管理费用，不随筛选栏的「账面
-                            / 经营」口径切换变化；已发生月份的实际值随口径切换。「预估补足」= 全月预估 − 已实现，为引擎外推增量。
-                            另注：当月成本中投放消耗与收入按已过天数累计，而人工 / 管理费用为整月口径，故「已实现」列的经营利润偏低，不代表本月亏损。
-                        </p>
-                    </template>
-                    <p v-else class="insight insight--warn">当月已实现数据不可用，推导过程暂不可展示。</p>
-                </el-collapse-item>
-            </el-collapse>
         </div>
     </PanelCard>
 </template>
@@ -267,7 +144,6 @@
     const revenueHint = computed(() =>
         current.value ? `已实现 ${money(realizedRevenue.value)} + 预估补足 ${money(current.value.revenue - realizedRevenue.value)}` : '',
     );
-    const confidenceHint = computed(() => `剩余 ${daysRemaining.value} 天为外推值，置信度随时点提高`);
 
     // ---------- 区块 3 环比 ----------
     /** 环比变化率（分母取绝对值，避免上月为负时符号反转） */

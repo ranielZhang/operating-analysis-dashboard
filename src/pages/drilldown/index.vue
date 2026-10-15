@@ -1,23 +1,24 @@
 <template>
     <div class="drill-page">
-        <!-- 操作行：只保留必要操作，页面名称由左侧菜单承担，不重复写标题与说明 -->
-        <div class="drill-page__bar">
-            <el-button size="small" @click="backToCompany">回到全公司</el-button>
-        </div>
-
         <!-- 范围提示条：存在组织/业务范围筛选时提示，避免误读下钻结果 -->
         <div v-if="hasFilter" class="drill-page__scope">
             <span class="drill-page__scope-tag">已过滤</span>
             <span class="drill-page__scope-text">当前已按范围过滤：{{ scopeText }}（全局筛选栏可调整）</span>
         </div>
 
-        <!-- 主区域：左侧节点详情、右侧树形下钻表，左右各占一半；两侧各自内部滚动 -->
-        <section class="drill-page__main">
-            <div class="drill-page__detail">
-                <DrillDetailPanel />
+        <!-- 主区域：标题 + 左侧节点详情、右侧树形下钻表 -->
+        <section class="drill-page__board">
+            <div class="drill-page__section-head">
+                <h3>经营下钻</h3>
             </div>
-            <div class="drill-page__tree">
-                <DrillTreeTable />
+            <AnalysisFilterBar />
+            <div class="drill-page__main">
+                <div class="drill-page__detail">
+                    <DrillDetailPanel />
+                </div>
+                <div class="drill-page__tree">
+                    <DrillTreeTable />
+                </div>
             </div>
         </section>
 
@@ -25,10 +26,6 @@
         <section class="drill-page__forecast">
             <div class="drill-page__section-head">
                 <h3>模拟预估</h3>
-                <p>
-                    把当前筛选范围当成一笔投资来推演：本月最终会是多少、未来 6 个月会怎样、每个月投出去的钱回收得怎么样。
-                    算法与参数说明见「预估参数配置」。
-                </p>
             </div>
             <CurrentMonthForecast />
             <RollingForecast />
@@ -44,7 +41,7 @@
     import CurrentMonthForecast from '@/pages/forecast/components/CurrentMonthForecast.vue';
     import RollingForecast from '@/pages/forecast/components/RollingForecast.vue';
     import CohortRecovery from '@/pages/forecast/components/CohortRecovery.vue';
-    import { selectCompany } from './useDrillSelection';
+    import AnalysisFilterBar from '@/components/AnalysisFilterBar.vue';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import { CENTERS, DEPARTMENTS, GROUPS, PITCHERS, PLATFORMS, PROJECTS, GAMES } from '@/domain/dimensions';
 
@@ -81,9 +78,6 @@
         return parts.join('；') || '部分范围';
     });
 
-    function backToCompany() {
-        selectCompany();
-    }
 </script>
 
 <style scoped lang="scss">
@@ -93,14 +87,6 @@
         gap: var(--oa-gap);
         padding: var(--oa-gap);
         min-height: 0;
-    }
-
-    .drill-page__bar {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: var(--oa-gap);
-        min-height: 24px;
     }
 
     .drill-page__scope {
@@ -129,6 +115,15 @@
         line-height: 1.5;
     }
 
+    /* 上半区：与「模拟预估」同一套栏目标题，下面才是左右两块 */
+    .drill-page__board {
+        display: flex;
+        flex-direction: column;
+        gap: var(--oa-gap);
+        min-width: 0;
+        min-height: 0;
+    }
+
     /* 主区域：详情 1/2 + 树表 1/2，固定高度让两侧内部各自滚动 */
     .drill-page__main {
         display: grid;
@@ -136,7 +131,7 @@
         gap: var(--oa-gap);
         align-items: stretch;
         min-height: 0;
-        height: min(720px, calc(100vh - 260px));
+        height: min(776px, calc(100vh - 204px));
     }
 
     .drill-page__tree,

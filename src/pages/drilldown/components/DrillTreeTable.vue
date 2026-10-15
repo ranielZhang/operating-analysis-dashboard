@@ -25,7 +25,7 @@
             </div>
 
             <div class="drill-tree__bar-right">
-                <el-button size="small" :disabled="empty" @click="expandToSecondLevel()">全部展开到第 2 层</el-button>
+                <el-button size="small" :disabled="atCompany" @click="selectCompany()">回到全公司</el-button>
             </div>
         </header>
 
@@ -160,7 +160,7 @@
     import { changeText, comma, money, percent, ratio, trendArrow, trendClass } from '@/utils/format';
     import { useAnalysisFilter } from '@/composables/useAnalysisFilter';
     import PanelEmptyState from '@/components/PanelEmptyState.vue';
-    import { AXIS_LEVELS, drillAxis, drillSelection, selectNode } from '../useDrillSelection';
+    import { AXIS_LEVELS, drillAxis, drillSelection, selectCompany, selectNode } from '../useDrillSelection';
 
     /**
      * 树形下钻表（M7）：公司 → 中心 → 部门 → 小组 → 投手 / 公司 → 平台 → 项目 → 游戏。
@@ -265,6 +265,9 @@
     const treeData = computed(() => sortRows(rootRows.value));
     const empty = computed(() => rootRows.value.length === 0);
 
+    /** 已经在全公司时，回到全公司没有可执行的操作 */
+    const atCompany = computed(() => drillSelection.dim === 'company' && drillSelection.key === 'company');
+
     /**
      * 轴 / 筛选变化时重建表格实例。
      * 懒加载的子节点按 row-key 缓存在 el-table 内部，不重建会把上一次筛选的子树串到新数据上。
@@ -280,8 +283,8 @@
     /**
      * 默认展开到第 2 层。
      *
-     * 页面打开就应该是「公司 → 中心 → 部门」这个视图，不需要用户先点一次
-     * 「全部展开到第 2 层」——否则首屏只有一行「云舟互娱」，看不出任何信息。
+     * 页面打开就应该是「公司 → 中心 → 部门」这个视图，
+     * 否则首屏只有一行「云舟互娱」，看不出任何信息。
      * 切轴或改筛选条件后表格会按 tableKey 重建，这里同样自动恢复展开状态。
      */
     async function autoExpand(attempt = 0) {
@@ -521,7 +524,9 @@
         align-items: center;
         gap: 10px;
         flex: 0 0 auto;
+        height: 34px;
         padding: 5px 10px;
+        box-sizing: border-box;
         border-bottom: 1px solid var(--oa-border-light);
         background: var(--oa-hover);
     }
@@ -546,6 +551,9 @@
     }
 
     .drill-tree__bar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         flex: 0 0 auto;
     }
 
