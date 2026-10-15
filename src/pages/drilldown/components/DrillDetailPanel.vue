@@ -115,7 +115,64 @@
                     <p class="detail__note">仅展示与左侧树同口径的月度走势；节点未被单月筛选命中时该月按 0 计。</p>
                 </section>
 
-                <!-- 区块 4 · 现金口径 -->
+                <!-- 区块 4 · 结构明细 -->
+                <section class="detail__block">
+                    <div class="detail__block-head">
+                        <span class="detail__block-title">结构明细</span>
+                        <span class="detail__block-sub">
+                            收入合计 {{ money(revenueTotal) }} · 成本合计 {{ money(costTotal) }}
+                        </span>
+                    </div>
+                    <div class="detail__breakdown">
+                        <div class="detail__list">
+                            <div class="detail__list-head">
+                                <span>收入构成</span>
+                                <span class="oa-num">{{ money(revenueTotal) }}</span>
+                            </div>
+                            <div v-for="row in revenueRows" :key="row.name" class="detail__row">
+                                <span class="detail__row-dot" :style="{ background: row.color }" />
+                                <span class="detail__row-name">{{ row.name }}</span>
+                                <span class="detail__row-val oa-num">{{ money(row.value) }}</span>
+                                <span class="detail__row-bar">
+                                    <el-progress
+                                        :percentage="row.percentage"
+                                        :show-text="false"
+                                        :stroke-width="4"
+                                        :color="row.color"
+                                    />
+                                </span>
+                                <span class="detail__row-pct oa-num">{{ percent(row.share) }}</span>
+                            </div>
+                        </div>
+
+                        <div class="detail__list">
+                            <div class="detail__list-head">
+                                <span>成本构成</span>
+                                <span class="oa-num">{{ money(costTotal) }}</span>
+                            </div>
+                            <div v-for="row in costRows" :key="row.name" class="detail__row">
+                                <span class="detail__row-dot" :style="{ background: row.color }" />
+                                <span class="detail__row-name">{{ row.name }}</span>
+                                <span class="detail__row-val oa-num">{{ money(row.value) }}</span>
+                                <span class="detail__row-bar">
+                                    <el-progress
+                                        :percentage="row.percentage"
+                                        :show-text="false"
+                                        :stroke-width="4"
+                                        :color="row.color"
+                                    />
+                                </span>
+                                <span class="detail__row-pct oa-num">{{ percent(row.share) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 区块 5 · 现金口径 -->
+                <p v-if="prepayAmount > 0" class="detail__note">
+                    预付（本期充值）<b class="oa-num">{{ money(prepayAmount) }}</b>
+                    属银行流水口径，与投放消耗不可叠加，故不计入成本构成。
+                </p>
                 <p v-if="showCash" class="detail__cash">
                     预付余额 <b class="oa-num">{{ money(m.prepayBalance) }}</b> · 应收未收
                     <b class="oa-num">{{ money(m.receivable) }}</b> → 现金缺口
@@ -268,7 +325,67 @@
         ],
     }));
 
-    // ---------- 区块 4 · 现金口径 ----------
+    // ---------- 区块 4 · 结构明细 ----------
+    interface BreakdownDef {
+        name: string;
+        value: number;
+        color: string;
+    }
+
+    const revenueTotal = computed(() => {
+        const r = m.value?.revenueByType;
+        if (!r) return 0;
+        return r.liuliangzhu + r.adGold + r.iapShare;
+    });
+
+    /** 成本合计 = 业务成本 + 人工 + 管理费用（当前口径），与下列 7 个科目之和恒等 */
+    const costTotal = computed(() => m.value?.totalCost ?? 0);
+
+    const revenueDefs = computed<BreakdownDef[]>(() => {
+        const r = m.value?.revenueByType;
+        return [
+            { name: '流量主', value: r?.liuliangzhu ?? 0, color: 'var(--oa-rev-liuliangzhu)' },
+            { name: '广告金', value: r?.adGold ?? 0, color: 'var(--oa-rev-adgold)' },
+            { name: '分成', value: r?.iapShare ?? 0, color: 'var(--oa-rev-share)' },
+        ];
+    });
+
+    /**
+     * 成本科目。**刻意不含「预付」**：预付代表本期现金流出（充值额），
+     * 与「投放」是同一笔业务成本的两种口径，两者相加会超过总成本
+     * （实测 79.7% + 93.3% > 100%）。预付单独在图注说明。
+     */
+    const costDefs = computed<BreakdownDef[]>(() => {
+        const c = m.value?.costByType;
+        return [
+            { name: '投放', value: c?.adSpend ?? 0, color: 'var(--oa-cost-ad)' },
+            { name: '工资', value: c?.salary ?? 0, color: 'var(--oa-cost-labor)' },
+            { name: '医社保', value: c?.socialInsurance ?? 0, color: '#7aaffb' },
+            { name: '个税', value: c?.individualTax ?? 0, color: '#a5c9fd' },
+            { name: '项目奖金', value: c?.projectBonus ?? 0, color: '#c9ddfe' },
+            { name: '福利费', value: c?.welfare ?? 0, color: 'var(--oa-cost-admin)' },
+            { name: '办公费', value: c?.office ?? 0, color: '#5fd4e6' },
+        ];
+    });
+
+    /** 本期充值额（现金口径），仅作说明，不计入构成 */
+    const prepayAmount = computed(() => m.value?.costByType.prepay ?? 0);
+
+    function decorate(defs: BreakdownDef[], total: number) {
+        return defs.map((d) => {
+            const share = total > 0 ? d.value / total : 0;
+            return {
+                ...d,
+                share,
+                percentage: Math.min(100, Math.max(0, Math.round(share * 100))),
+            };
+        });
+    }
+
+    const revenueRows = computed(() => decorate(revenueDefs.value, revenueTotal.value));
+    const costRows = computed(() => decorate(costDefs.value, costTotal.value));
+
+    // ---------- 区块 5 · 现金口径 ----------
     const showCash = computed(() => {
         if (drillSelection.dim === 'company') return true;
         const metrics = m.value;
@@ -410,6 +527,82 @@
 
 
 
+
+    .detail__list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .detail__list-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding-bottom: 3px;
+        font-size: var(--oa-fs-xs);
+        font-weight: 600;
+        color: var(--oa-text-2);
+        border-bottom: 1px solid var(--oa-border-light);
+    }
+
+    .detail__row {
+        display: grid;
+        grid-template-columns: 6px minmax(46px, auto) minmax(52px, auto) minmax(28px, 1fr) 44px;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--oa-fs-xs);
+    }
+
+    .detail__row-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    .detail__row-name {
+        color: var(--oa-text-3);
+        white-space: nowrap;
+    }
+
+    .detail__row-val {
+        color: var(--oa-text-1);
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .detail__row-bar {
+        display: block;
+        min-width: 0;
+
+        :deep(.el-progress) {
+            line-height: 1;
+        }
+
+        :deep(.el-progress-bar__outer) {
+            background: var(--oa-border-light);
+        }
+    }
+
+    .detail__row-pct {
+        color: var(--oa-text-4);
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    /* 区块 5 */
+    .detail__breakdown {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--oa-gap);
+    }
+
+    @media (max-width: 1200px) {
+        .detail__breakdown {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
 
     .detail__list {
         display: flex;
